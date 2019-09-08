@@ -24,7 +24,8 @@
 from itertools import combinations, permutations
 import sys
 from math import log
-
+import warnings
+import argparse
 
 try:
     from gurobipy import *
@@ -38,7 +39,6 @@ except ImportError as e:
     print("Could not import matplotlib.pyplot!")
     print(e)
 
-
 try:
     from discrete_scoring import BDeuScoresGenerator
 except ImportError as e:
@@ -51,16 +51,27 @@ except ImportError as e:
     print("Could not import BGe score generating code!")
     print(e)
 
-import networkx as nx
-from networkx.algorithms.moral import moral_graph
+try:
+    import networkx as nx
+    from networkx.algorithms.moral import moral_graph
+except ImportError as e:
+    print("Could not import networkx!")
+    print(e)
     
-import warnings
+try:
+    import pandas as pd
+except ImportError as e:
+    print("Could not import pandas!")
+    print(e)
+
+try:
+    import numpy as np
+except ImportError as e:
+    print("Could not import numpy!")
+    print(e)
+
 warnings.filterwarnings('ignore')
 
-import pandas as pd
-import numpy as np
-
-import argparse
 parser = argparse.ArgumentParser(description='Use Gurobi for Bayesian network learning',formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('input', help="File containing input, either containing discrete data (default), continuous data (see --bge option) or local scores in 'Jaakkola' format (see --scores option)")
 parser.add_argument('-n', '--nsols', type=int, default=1, help = "How many BNs to find")
