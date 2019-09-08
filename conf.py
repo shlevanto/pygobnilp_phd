@@ -34,6 +34,9 @@ sys.path.insert(0, os.path.abspath('.'))
 extensions = ['sphinx.ext.autodoc','sphinx.ext.napoleon',
               'sphinx.ext.autosummary']
 
+
+autodoc_mock_imports = ["networkx"]
+
 #numpydoc_show_inherited_class_members = False
 #numpydoc_class_members_toctree = False
 
