@@ -35,7 +35,7 @@ extensions = ['sphinx.ext.autodoc','sphinx.ext.napoleon',
               'sphinx.ext.autosummary']
 
 
-autodoc_mock_imports = ["networkx", "gurobipy"]
+autodoc_mock_imports = ["networkx", "gurobipy", "numba"]
 
 #numpydoc_show_inherited_class_members = False
 #numpydoc_class_members_toctree = False
