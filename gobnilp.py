@@ -28,9 +28,7 @@ import warnings
 import argparse
 
 try:
-    from gurobipy import Model, LinExpr, GRB.LESS_EQUAL, GRB.BINARY, GRB.CONTINUOUS, GRB.INTEGER, \
-        GRB.EQUAL, GRB.Callback.MIPNODE, GRB.Callback.MIPNODE_STATUS, GRB.Callback.MIPNODE_NODCNT, \
-        GRB.OPTIMAL, GRB.Callback.MIPNODE_OBJBND, GRB.Callback.MIPSOL, GRB.GREATER_EQUAL, GRB.CUTOFF
+    from gurobipy import Model, LinExpr, GRB
 except ImportError as e:
     print("Gurobi not available!")
     print(e)
