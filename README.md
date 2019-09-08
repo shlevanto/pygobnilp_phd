@@ -33,23 +33,23 @@ values. Values are separated by spaces.
 
 Running with default settings:  
 
-`python simple_gobnilp.py test_data_and_scores/asia_10000.dat`
+`python gobnilp.py test_data_and_scores/asia_10000.dat`
 
 Finding the 4 best BNs (with the default limit, 3, on the size of
 parent sets):
 
-`python simple_gobnilp.py --nopruning --kbest --nsols 4 test_data_and_scores/asia_10000.dat`
+`python gobnilp.py --nopruning --kbest --nsols 4 test_data_and_scores/asia_10000.dat`
 
 Finding the 4 best BNs (with the default limit, 3, on the size of
 parent sets) and where only one BN for each Markov equivalence class
 is allowed:
 
-`python simple_gobnilp.py --nopruning --mec --kbest --nsols 4 test_data_and_scores/asia_10000.dat`
+`python gobnilp.py --nopruning --mec --kbest --nsols 4 test_data_and_scores/asia_10000.dat`
 
 Finding the 4 best BNs with no limit on parent set size and where only
 one BN for each Markov equivalence class is allowed:
 
-`python simple_gobnilp.py --nopruning --mec --kbest --nsols 4 --palim 999 test_data_and_scores/asia_10000.dat`
+`python gobnilp.py --nopruning --mec --kbest --nsols 4 --palim 999 test_data_and_scores/asia_10000.dat`
 
 In the examples above where the goal was to find the 'k best' BNs
 (subject to various constraints), it was necessary to use
@@ -64,7 +64,7 @@ turned off to ensure correct results.
 The limit on parent set size is an important parameter. Note that its
 default value is 3. Raising this value will slow down learning but may
 lead to a higher scoring BN. For example, doing `python
-simple_gobnilp.py --palim 4 test_data_and_scores/alarm_100.dat` finds
+gobnilp.py --palim 4 test_data_and_scores/alarm_100.dat` finds
 a higher scoring network than using '--palim 3', and does not take too
 long.  Raising to '--palim 5' finds a better (well, higher scoring)
 network, but takes just under 100 seconds on my desktop.
@@ -74,12 +74,12 @@ from continuous data using BGe scoring. To do this use '-b' or '--bge'
 on the command line. (The format for continuous data is similar to that
 for discrete data except there is no line for arity.) For example
 
-`python simple_gobnilp.py --bge test_data_and_scores/gaussian.dat`
+`python gobnilp.py --bge test_data_and_scores/gaussian.dat`
 
 or, to find a higher scoring Gaussian network (with BGe score
 -53258.9402):
 
-`python simple_gobnilp.py --bge -p 4 test_data_and_scores/gaussian.dat`
+`python gobnilp.py --bge -p 4 test_data_and_scores/gaussian.dat`
 
 The file `gaussian.dat` is from bnlearn where it is called
 `guassian.test`. See the [bnlearn
@@ -90,5 +90,5 @@ work Marco!
 
 
 For more details run:
-`python simple_gobnilp -h`
+`python gobnilp.py -h`
 
