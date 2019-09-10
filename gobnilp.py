@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-# *   GOBNILP Copyright (C) 2012-2019 James Cussens, Mark Bartlett        *
+# *   GOBNILP (Python version) Copyright (C) 2019 James Cussens           *
 # *                                                                       *
 # *   This program is free software; you can redistribute it and/or       *
 # *   modify it under the terms of the GNU General Public License as      *
@@ -17,9 +17,11 @@
 # *   <http://www.gnu.org/licenses>.                                      *
 """
    Python version of GOBNILP
-   Author: James Cussens
-
 """
+
+__author__ = "James Cussens"
+__email__ = "james.cussens@york.ac.uk"
+
 
 from itertools import combinations, permutations
 import sys
@@ -207,8 +209,9 @@ class MN(nx.Graph):
 
 class BN(nx.DiGraph):
     '''
-    Subclass of networkx.DiGraph see documentation for that class
-    for all methods not documented here.
+    Subclass of 
+    `networkx.DiGraph <https://networkx.github.io/documentation/stable/reference/classes/digraph.html>`_. 
+    See documentation for that class for all methods not documented here.
 
     At present this class only implements the structure of a BN - the DAG.
     '''
@@ -265,8 +268,8 @@ class BN(nx.DiGraph):
         return self.subgraph(ancestors)
     
     def satisfy_ci(self,a,b,s):
-        '''Does the DAG satisfy this conditional independence relation:
-         a is independent of b conditional on s?
+        '''Does the DAG satisfy this conditional independence relation\\:
+        `a` is independent of `b` conditional on `s`?
 
         Args:
          a (iter) : A set of BN variables
@@ -282,16 +285,32 @@ class BN(nx.DiGraph):
         return MN(moral_graph(mag)).satisfy_ci(a,b,s), mag.nodes
         
     def connected(self,u,v):
+        '''Are `u` and `v` connected (in either direction)
+        
+        Args:
+         u (str) : A node
+         v (str) : A node
+
+        Returns:
+         bool: Whether `u` and `v` are connected
+        '''
         return self.has_edge(u,v) or self.has_edge(v,u)
 
     def adjacency_matrix(self):
+        '''The adjacency matrix
+
+        Returns:
+         numpy.matrix: The adjacency matrix
+        '''
         return nx.to_numpy_matrix(self)
     
     def cpdag(self,compelled=()):
         '''Return the CPDAG representation of the Markov equivalence class of the input 
         DAG
         
-        Uses the following 3 rules from Koller and Friedman (here shown in Prolog)::
+        Starting from a initial set of edges whose direction is *compelled* to be that
+        given in the DAG, 
+        the following 3 rules from Koller and Friedman (here shown in Prolog) are used::
 
          %R1
          compelled(Y,Z) :- edge(Y,Z), compelled(X,Y), not edge(X,Z), not edge(Z,X).
@@ -301,11 +320,12 @@ class BN(nx.DiGraph):
          compelled(X,Z) :- edge(X,Z), compelled(Y1,Z), compelled(Y2,Z), 
                            (edge(X,Y1);edge(Y1,X)),  (edge(X,Y2);edge(Y2,X)).
 
-        Following algorithm is just the "semi-naive evaluation" algorithm for computing 
-        the relevant least Herbrand model - ie all the compelled edges.
+        This method uses the "semi-naive evaluation" algorithm for computing 
+        the relevant least Herbrand model, which is the set of all the compelled edges.
 
-        In addition the `compelled` tuple of edges given as input will possibly
-        add additional compelled edges.
+        Args:
+         compelled (iter): Edges to set as compelled in addition to those involved in
+          *immoralities*. 
         '''
 
         new_compelled = list(compelled)
@@ -369,34 +389,65 @@ class BN(nx.DiGraph):
         return cpdag
 
 class CPDAG(BN):
+    '''Subclass of :py:class:`gobnilp.BN <gobnilp.BN>` which is itself a subclass of
+    `networkx.DiGraph <https://networkx.github.io/documentation/stable/reference/classes/digraph.html>`_. 
 
-    edge_arrow = {True:'->',False:'-'}
-    edge_color = {True:'red',False:'black'}
+    See documentation for those classes for all methods not documented here.
+    '''
+
+    directed_arrow_text = '->'
+    '''Text to indicate a directed arrow'''
+    undirected_arrow_text = '-'
+    '''Text to indicate a undirected edge'''
+    directed_arrow_colour = 'red'
+    '''Colour to indicate a directed arrow'''
+    undirected_arrow_colour = 'black'
+    '''Colour to indicate a undirected edge'''
+    
+    _edge_arrow = {True:directed_arrow_text,False:undirected_arrow_text}
+    _edge_colour = {True:directed_arrow_colour,False:undirected_arrow_colour}
 
     def __str__(self):
+        '''
+        Returns a textual representation of the CPDAG
+
+        Returns: 
+         str: A textual representation of the CPDAG
+        '''
+
         res = '**********\n'
         res += 'CPDAG:\nVertices: {0}\n'.format(','.join(self.nodes))
         for (u,v,compelled) in self.edges.data('compelled'):
-            res += '{0}{1}{2}\n'.format(u,self.edge_arrow[compelled],v)
+            res += '{0}{1}{2}\n'.format(u,self._edge_arrow[compelled],v)
         return res
 
     def plot(self,abbrev=True):
+        '''
+        Generate and show a plot of the CPDAG
+
+        A DAG from the Markov equivalence class defined by the CPDAG is shown.
+        Reversible and irreversible arrows are distinguished by colour. By default
+        the colours are black and red, respectively.
+
+        Args:
+         abbrev (int) : Whether to abbreviate variable names to first 3 characters.
+        '''
         if abbrev:
             ls = dict((x,x[:3]) for x in self.nodes)
         else:
             ls = None
-        edge_colors = [self.edge_color[compelled] for (u,v,compelled) in self.edges.data('compelled')]
+        edge_colors = [self._edge_colour[compelled] for (u,v,compelled) in self.edges.data('compelled')]
         nx.draw_networkx(self,pos=nx.drawing.nx_agraph.graphviz_layout(self,prog='dot'),
                          node_color="white",arrowsize=15,edge_color=edge_colors,labels=ls)
         plt.show()
 
-    def adjacency_matrix(self):
-        mat = nx.to_numpy_matrix(self)
-
     
 class Gobnilp(Model):
-    '''Subclass of Gurobi Model class, specific 
-    to learning Bayesian networks
+    '''Subclass of `the Gurobi Model class 
+    <https://www.gurobi.com/documentation/8.1/refman/py_model.html>`_ specific 
+    to learning Bayesian networks.
+
+    See documentation for that class for all methods not documented here.
     '''
 
     allowed_user_constypes = [
@@ -2285,7 +2336,7 @@ class Gobnilp(Model):
         Args:
          lazy(int): Controls the 'laziness' of these constraints by settng the
           Lazy attribute of the constraints.         
-          See `the Gurobi documentation <https://www.gurobi.com/documentation/8.1/refman/lazy.html/>`_
+          See `the Gurobi documentation <https://www.gurobi.com/documentation/8.1/refman/lazy.html>`_
         '''
         n = 0
         total_order = self.total_order
