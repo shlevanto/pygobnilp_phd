@@ -326,6 +326,10 @@ class BN(nx.DiGraph):
         Args:
          compelled (iter): Edges to set as compelled in addition to those involved in
           *immoralities*. 
+        
+        Returns:
+         gobnilp.CPDAG : the CPDAG representation of the Markov equivalence class of the input 
+         DAG
         '''
 
         new_compelled = list(compelled)

@@ -10,7 +10,6 @@ Welcome to pygobnilp's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-
 .. automodule:: gobnilp
    :members:
    :special-members:
