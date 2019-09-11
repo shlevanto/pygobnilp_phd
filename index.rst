@@ -10,20 +10,50 @@ Welcome to pygobnilp's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-.. automodule:: gobnilp
+The Gobnilp class
+------------------
+
+.. autoclass:: gobnilp.Gobnilp
    :members:
-   :special-members:
-   :exclude-members: __weakref__
+      
+The BN class
+------------
+
+.. autoclass:: gobnilp.BN
+   :members:
+      
+The CPDAG class
+---------------
+
+.. autoclass:: gobnilp.CPDAG
+   :members:	       
+
+The MN class
+------------
+
+.. autoclass:: gobnilp.MN
+   :members:
+
+		
+The BDeuScoresGenerator class
+-----------------------------
+
 .. autoclass:: discrete_scoring.BDeuScoresGenerator
    :members:
-   :special-members:
-   :exclude-members: __weakref__
+      
+The BGe class
+-------------
+
 .. autoclass:: continuous_scoring.BGe
    :members:
-   :special-members:
-   :exclude-members: __weakref__
+      
+Functions in the gobnilp module
+-------------------------------
 
-
+.. automodule:: gobnilp
+   :members: from_bnlearn_modelstring, read_local_scores
+   
+	       
 Indices and tables
 ==================
 

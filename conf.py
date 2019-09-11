@@ -36,6 +36,11 @@ extensions = ['sphinx.ext.autodoc','sphinx.ext.napoleon',
 
 autodoc_mock_imports = ["networkx", "gurobipy", "numba"]
 
+autodoc_default_options = {'special-members':True,
+                           'exclude-members':' __weakref__'}
+
+#autosummary_generate = True
+
 #numpydoc_show_inherited_class_members = False
 #numpydoc_class_members_toctree = False
 
@@ -96,7 +101,7 @@ html_theme = "sphinx_rtd_theme"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+#html_theme_options = {'collapse_navigation': False}
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".

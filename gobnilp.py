@@ -106,12 +106,13 @@ def _subdict(dkt,keys):
     return {k:dkt[k] for k in keys} 
 
 def from_bnlearn_modelstring(modelstring):
-    '''Return a BN from a bnlearn modelstring
+    '''Return a DAG from a bnlearn modelstring
 
     Args:
      modelstring (str) : A bnlearn modelstring defining a DAG
 
-    Returns: networkx.DiGraph : The DAG as a networkx Digraph
+    Returns: 
+     networkx.DiGraph : The DAG as a networkx Digraph
     '''
     bn = nx.DiGraph()
     for f in modelstring[1:-1].split(']['):
@@ -124,17 +125,17 @@ def from_bnlearn_modelstring(modelstring):
     return bn
 
 def read_local_scores(f,verbose=False):
-    '''Read local scores from a named file, standard intput or a file object,
+    '''Read local scores from a named file, standard input or a file object,
     and return a dictionary dkt where dkt[child][parentset] is the local score 
     for the family child<-parentset
 
     The file is assumed to be in "Jaakkola" format.
-    See the manual for details.
 
     Args:
         f (str/file object) : The file containing the local scores. 
 
-    Returns: dict : Dictionary containing local scores
+    Returns: 
+     dict : Dictionary containing local scores
     '''
 
     if type(f) == str:
@@ -395,7 +396,6 @@ class BN(nx.DiGraph):
 class CPDAG(BN):
     '''Subclass of :py:class:`gobnilp.BN <gobnilp.BN>` which is itself a subclass of
     `networkx.DiGraph <https://networkx.github.io/documentation/stable/reference/classes/digraph.html>`_. 
-
     See documentation for those classes for all methods not documented here.
     '''
 
@@ -450,7 +450,6 @@ class Gobnilp(Model):
     '''Subclass of `the Gurobi Model class 
     <https://www.gurobi.com/documentation/8.1/refman/py_model.html>`_ specific 
     to learning Bayesian networks.
-
     See documentation for that class for all methods not documented here.
     '''
 
@@ -1856,7 +1855,7 @@ class Gobnilp(Model):
         :py:meth:`input_discrete_data <gobnilp.Gobnilp.input_discrete_data>`
 
         Args:
-            branch_priority (int): The common Gurobi branching priority for the 
+            branch_priority (int): The Gurobi branching priority for the 
              family variables. This value is ignored if `best_first_branch_priority` is True.
             best_first_branch_priority (bool): If True then the branching priority for the 
              family variables for any given child are (totally) ordered according to local score,
@@ -1931,7 +1930,7 @@ class Gobnilp(Model):
         of the variable.)
 
         Args:
-            branch_priority (int): The common Gurobi branching priority for the 
+            branch_priority (int): The Gurobi branching priority for the 
              arrow variables.
         '''
         arrow = {}
@@ -1959,7 +1958,7 @@ class Gobnilp(Model):
         of the variable.)
 
         Args:
-            branch_priority (int): The common Gurobi branching priority for the 
+            branch_priority (int): The Gurobi branching priority for the 
              total order variables.
         '''
         total_order = {}
@@ -1987,7 +1986,7 @@ class Gobnilp(Model):
         of the variable.)
 
         Args:
-            branch_priority (int): The common Gurobi branching priority for the 
+            branch_priority (int): The Gurobi branching priority for the 
              adjacency variables.
 
         '''
@@ -2036,7 +2035,7 @@ class Gobnilp(Model):
         of the variable.)
 
         Args:
-            branch_priority (int): The common Gurobi branching priority for the 
+            branch_priority (int): The Gurobi branching priority for the 
              generation variables.
         '''
         gen = {}
@@ -2066,7 +2065,7 @@ class Gobnilp(Model):
         of the variable.)
 
         Args:
-            branch_priority (int): The common Gurobi branching priority for the 
+            branch_priority (int): The Gurobi branching priority for the 
              generation difference variables.
         '''
         gendiff = {}
@@ -2107,7 +2106,7 @@ class Gobnilp(Model):
         of the variable.)
 
         Args:
-            branch_priority (int): The common Gurobi branching priority for the 
+            branch_priority (int): The Gurobi branching priority for the 
              absolute generation difference variables.
         '''
         absgendiff = {}
@@ -2958,6 +2957,9 @@ class Gobnilp(Model):
 
         Such constraints can be read in prior to computation of local
         scores, and can make that computation more efficient
+        
+        Args:
+           consfile (str/None): If not None then a file containing user constraints
         '''
         if consfile is None:
             return
@@ -2993,7 +2995,7 @@ class Gobnilp(Model):
 
         Args:
             nsols (int): Number of BNs to learn
-            kbest (bool): Whether learned should be in descending order of score.
+            kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
             mec (bool): Whether only one BN per Markov equivalence class should be feasible.
             consfile (str/None): If not None then a file containing user constraints
         '''
@@ -3055,15 +3057,18 @@ class Gobnilp(Model):
     def learn(self, nsols=1, kbest=False, mec=False, consfile=None, make_basic_model=True, plot=True):
         '''Do BN learning with standard variables and constraints.
 
-        Uses :py:meth:`make_basic_model <gobnilp.Gobnilp.make_basic_model>`
+        With default arguments uses :py:meth:`make_basic_model <gobnilp.Gobnilp.make_basic_model>`
         to add variables and constraints.
 
         Learned BNs are printed out on standard output.
 
         Args:
-            nsols (int): Number of BNs to learn
-            kbest (bool): Whether learned should be in descending order of score.
-            mec (bool): Whether only one BN per Markov equivalence class should be feasible.
+         nsols (int): Number of BNs to learn
+         kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
+         mec (bool): Whether only one BN per Markov equivalence class should be feasible.
+         consfile (str/None): If not None then a file containing user constraints
+         make_basic_model (bool): If False no MIP is created. Use this setting when a MIP model already exists.
+         plot (bool): Whether to plot learned BNs once they have been learned.
         '''
         if make_basic_model:
             self.make_basic_model(nsols, kbest, mec, consfile)
