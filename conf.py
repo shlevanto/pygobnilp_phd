@@ -36,7 +36,7 @@ extensions = ['sphinx.ext.autodoc','sphinx.ext.napoleon',
 
 autodoc_mock_imports = ["networkx", "gurobipy", "numba"]
 
-autodoc_default_options = {'special-members':True,
+autodoc_default_options = {'special-members':None,
                            'exclude-members':' __weakref__'}
 
 #autosummary_generate = True
