@@ -212,7 +212,9 @@ class BN(nx.DiGraph):
     '''
     Subclass of 
     `networkx.DiGraph <https://networkx.github.io/documentation/stable/reference/classes/digraph.html>`_. 
-    See documentation for that class for all methods not documented here.
+    See documentation for 
+    `networkx.DiGraph <https://networkx.github.io/documentation/stable/reference/classes/digraph.html>`_ 
+    for all methods not documented here.
 
     At present this class only implements the structure of a BN - the DAG.
     '''
@@ -450,7 +452,9 @@ class Gobnilp(Model):
     '''Subclass of `the Gurobi Model class 
     <https://www.gurobi.com/documentation/8.1/refman/py_model.html>`_ specific 
     to learning Bayesian networks.
-    See documentation for that class for all methods not documented here.
+    See documentation for `the Gurobi Model class 
+    <https://www.gurobi.com/documentation/8.1/refman/py_model.html>`_ 
+    for all methods not documented here.
     '''
 
     allowed_user_constypes = [
@@ -689,26 +693,44 @@ class Gobnilp(Model):
     @property
     def generation(self):
         ''' dict: Dictionary of generation variables
-        (if these variables have been created, by default they are not)
+        (if these variables have been created by calling
+        :py:meth:`add_variables_gen <gobnilp.Gobnilp.add_variables_gen>`)
 
-        Assuming the appropriate constraints have been added,
-        if it exists ``generation[v1]`` is the generation number for ``v1``.
+        Assuming appropriate constraints have been added, by,
+        for example, calling the method 
+        :py:meth:`add_constraints_gen_arrow_indicator <gobnilp.Gobnilp.add_constraints_gen_arrow_indicator>`,
+        then ``generation[v1]`` is the generation number for ``v1``.
+
+        See Section 3.1.2 of `Maximum likelihood pedigree reconstruction using integer 
+        programming (Cussens, 2010) <https://www.cs.york.ac.uk/ftpdir/pub/aig/Papers/james.cussens/wcb10.pdf>`_ 
+        for details of how generation variables can be used to rule out cycles in directed graphs. 
 
         Raises:
          Gobnilp.StageError: If no generation variables have been created
+
+        See also:
+         * :py:meth:`add_variables_gen <gobnilp.Gobnilp.add_variables_gen>`
+         * :py:meth:`add_constraints_gen_arrow_indicator <gobnilp.Gobnilp.add_constraints_gen_arrow_indicator>`
         '''
         return self._getmipvars('generation')
 
     @property
     def generation_difference(self):
         ''' dict: Dictionary of generation difference variables
-        (if these variables have been created, by default they are not)
+        (if these variables have been created by calling
+        :py:meth:`add_variables_gendiff <gobnilp.Gobnilp.add_variables_gendiff>`)
 
-        Assuming the appropriate constraints have been added,
-        if it exists ``generation_difference[v1,v2] = generation[v1] - generation[v2]``
+        Assuming the appropriate constraints have been added, by, for example,
+        calling the method
+        :py:meth:`add_constraints_gendiff <gobnilp.Gobnilp.add_constraints_gendiff>`,
+        then ``generation_difference[v1,v2] = generation[v1] - generation[v2]``
 
         Raises:
          Gobnilp.StageError: If no generation difference variables have been created
+
+        See also:
+         * :py:meth:`add_variables_gendiff <gobnilp.Gobnilp.add_variables_gendiff>`
+         * :py:meth:`add_constraints_gendiff <gobnilp.Gobnilp.add_constraints_gendiff>`
         '''
         return self._getmipvars('generation_difference')
 
@@ -1371,7 +1393,7 @@ class Gobnilp(Model):
         Not all parent sets are included. If `palim` is not None, 
         then only those parent sets of cardinality at most `palim` can be included. 
 
-        Also, when `pruning==True`, a parent set is only included if its local score
+        Also, when `pruning=True`, a parent set is only included if its local score
         exceeds that of all its proper subsets.
 
         If `local_score_fun` is supplied then it should be a function that computes a local
@@ -1382,7 +1404,7 @@ class Gobnilp(Model):
             local_score_type(str): String specifying built-in local score. This value is ignored
              if `local_score_fun` is not None.
             local_score_fun(fun/None): If not None a local score function such that `local_score_fun(child,parents)`
-             computes (`score`,`ub`) where `score` is the desired local score for `child` having parentset `parents`
+             computes `(score,ub)` where `score` is the desired local score for `child` having parentset `parents`
              and `ub` is either `None` or an upper bound on the local score for `child` with any proper superset of `parents`
             palim(int/None): If not None then the maximal size of a parent set
             pruning(bool): Whether not to include parent sets which cannot be optimal.
