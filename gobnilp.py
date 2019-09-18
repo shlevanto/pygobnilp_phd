@@ -2184,7 +2184,10 @@ class Gobnilp(Model):
 
 
     def add_constraints_4b(self):
-        '''Adds "4B" constraints. See e.g. Cussens et al, JAIR 2017 for details
+        '''Adds "4B" constraints. See
+        `Bayesian Network Structure Learning with Integer Programming:
+        Polytopes, Facets and Complexity (Cussens et al, JAIR) <https://jair.org/index.php/jair/article/view/11041/26213>`_
+        for details
         '''
         n = 0
         bnvarset = frozenset(self.bn_variables)
@@ -2594,9 +2597,9 @@ class Gobnilp(Model):
                     for pa in parentset:
                         digraph.add_edge(pa,child)
                     break
-        self.lazy_user_constraints(digraph)
+        self._lazy_user_constraints(digraph)
 
-    def lazy_user_constraints(self,digraph):
+    def _lazy_user_constraints(self,digraph):
         '''
         forbidden and obligatory ancestors the only lazy constraints at present
         '''
@@ -2972,10 +2975,10 @@ class Gobnilp(Model):
         '''Read user constraints from a Python module and store them
 
         Allowed user constraints are:
-        "forbidden_arrows","forbidden_adjacencies",
-        "obligatory_arrows","obligatory_adjacencies",
-        "obligatory_ancestors","forbidden_ancestors",
-        "obligatory_conditional_independences"
+        ``forbidden_arrows``, ``forbidden_adjacencies``,
+        ``obligatory_arrows``, ``obligatory_adjacencies``,
+        ``obligatory_ancestors``, ``forbidden_ancestors`` and
+        ``obligatory_conditional_independences``
 
         Such constraints can be read in prior to computation of local
         scores, and can make that computation more efficient
