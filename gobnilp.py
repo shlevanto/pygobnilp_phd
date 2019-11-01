@@ -93,7 +93,7 @@ parser.add_argument('--starts', help="Starting DAG(s) in bnlearn modelstring for
 # Scores generation options
 parser.add_argument('-u','--nopruning', action="store_true", help="No pruning of local scores to be done")
 parser.add_argument('-p','--palim', type=int, default=3, help="Parent set size limit (for local score generation)")
-parser.add_argument('-a', '--alpha', type=float, default=1.0, help="The effective sample size (for BDeu local score generation)")
+parser.add_argument('-a', '--alpha', type=float, default=1.0, help="The equivalent sample size (for BDeu local score generation)")
 parser.add_argument('-t', '--adtree', action="store_true", help="Use an ADTree (for local score generation from discrete data)")
 parser.add_argument('-r', '--rmin', type=int, default=32, help = "Rmin value for the ADTree (for local score generation from discrete data)")
 #parser.add_argument('--nu', type=float, default=None, help ="the mean vector for the Normal part of the normal-Wishart prior for BGe scoring. If None then the sample mean is used.")
@@ -788,14 +788,21 @@ class Gobnilp(Model):
 
     @property
     def alpha(self):
-        '''float: The *effective sample size* used for BDeu scoring'''
+        '''float: The *equivalent sample size* used for BDeu scoring'''
         return self._alpha
 
-    @alpha.setter
-    def alpha(self, value):
-        if not value > 0:
-            raise ValueError('alpha (effective sample size) must be positive')
-        self._alpha = value
+    def set_alpha(self, alpha):
+        '''Set the *equivalent sample size* for BDeu scoring
+        
+        Args:
+         alpha (float): the *equivalent sample size* for BDeu scoring
+
+        Raises:
+         ValueError: If `alpha` is not positive
+        '''
+        if not alpha > 0:
+            raise ValueError('alpha (equivalent sample size) must be positive')
+        self._alpha = alpha
 
     @property
     def forbidden_arrows(self):
@@ -3152,6 +3159,7 @@ if __name__ == '__main__':
         else:
             model.input_discrete_data(args.input, use_adtree=args.adtree, rmin=args.rmin, palim=args.palim)
             skore = "BDeu"
+            model.set_alpha(args.alpha)
         model.input_local_scores(model.return_local_scores(
             local_score_type=skore,palim=args.palim,pruning= not args.nopruning, edge_penalty=args.edge_penalty))
 
