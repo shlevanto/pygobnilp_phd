@@ -35,10 +35,10 @@ The MN class
    :members:
 
 		
-The BDeuScoresGenerator class
+The BDeu class
 -----------------------------
 
-.. autoclass:: discrete_scoring.BDeuScoresGenerator
+.. autoclass:: discrete_scoring.BDeu
    :members:
       
 The BGe class

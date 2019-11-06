@@ -565,6 +565,22 @@ class Gobnilp(Model):
         '''list: The BN variables (in order)'''
         return self._bn_variables
 
+    # have to use method since property setting not working
+    # due to Gobnilp being a subclass of Gurobi
+    def set_bn_variables(self,bnvars):
+        '''Set the BN variables to be a subset of existing BN variables
+        
+        Args:
+         bnvars (iter): A subset of the existing BN variables 
+
+        Raises:
+         ValueError: If `bnvars` is not a subset of the existing BN variables
+        '''
+        if not frozenset(bnvars).issubset(self.bn_variables):
+            raise ValueError('{0} is not a subset of {1}'.format(bnvars,self.bn_variables))
+        else:
+            self._bn_variables = sorted(bnvars)
+        
     @property
     def bn_variables_index(self):
         '''dict: Maps each BN variable to its index in the sorted list of BN variables'''
@@ -791,6 +807,8 @@ class Gobnilp(Model):
         '''float: The *equivalent sample size* used for BDeu scoring'''
         return self._alpha
 
+    # have to use method since property setting not working
+    # due to Gobnilp being a subclass of Gurobi
     def set_alpha(self, alpha):
         '''Set the *equivalent sample size* for BDeu scoring
         
@@ -801,7 +819,7 @@ class Gobnilp(Model):
          ValueError: If `alpha` is not positive
         '''
         if not alpha > 0:
-            raise ValueError('alpha (equivalent sample size) must be positive')
+            raise ValueError('alpha (equivalent sample size) must be positive but was give {0}'.format(alpha))
         self._alpha = alpha
 
     @property
@@ -1415,6 +1433,7 @@ class Gobnilp(Model):
              and `ub` is either `None` or an upper bound on the local score for `child` with any proper superset of `parents`
             palim(int/None): If not None then the maximal size of a parent set
             pruning(bool): Whether not to include parent sets which cannot be optimal.
+            edge_penalty(float): The local score for a parent set with `p` parents will be reduced by `p*edge_penalty`.
 
         Returns:
            dict: A dictionary `dkt` such that `dkt[child][parentset]` is the local score for `child` having parent set `parentset` (where `parentset` is a frozenset).
@@ -3048,30 +3067,85 @@ class Gobnilp(Model):
             self.add_user_cons(consfile)
         self._stage = 3
 
-    def use_discrete_data(self, data_source, learn=True, variables = None,
+    def use_discrete_data(self, data_source=None, learn=True, read_data=True, variables = None,
                           arities = None, use_adtree=False, rmin=32, palim=3,
                           nsols=1, kbest=False, mec=False, consfile=None, pruning=True, edge_penalty=0.0, plot=True):
+        '''
+        With default parameters learns a BN from discrete data
+
+        If `learn=False` then data is read in, local scores are computed and a MIP instance is created, **but not solved**.
+        Use `learn=False` if you wish to add, say, extra variables and constraints before solving. You can do the solving when you
+        are ready by calling :py:meth:`learn <gobnilp.Gobnilp.learn>` with `make_basic_model=False`.
+
+        Args:
+         data_source (str/array_like) : If not None, name of the file containing the discrete data or an array_like object.
+                               If None, then it is assumed that discrete data has previously been read in.
+         learn(bool): Whether to learn a BN (see above).
+         variables (iterable/None): Names for the variables in the data. If `data_source` is a filename then 
+                               this value is ignored and the variable names are those given in the file. 
+                               Otherwise if None then the variable names will X1, X2, ...
+         arities (array_like/None): Arities for the discrete variables. If `data_source` is a filename then 
+                               this value is ignored and the arities are those given in the file. 
+                               Otherwise if None then the arity for a variable is set to the number of distinct
+                               values observed for that variable in the data.
+         use_adtree( bool): Whether to build and use an AD-tree. Using an AD-tree is typically only faster
+                               for very large datasets.
+         rmin (int): The minimum number of records for a node in an AD-tree to be a 'row list'.
+                        (This value is ignored if ``use_adtree=False``.)
+         palim (int/None): If an integer, this should be the maximum size of parent sets.
+         nsols (int): Number of BNs to learn
+         kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
+         mec (bool): Whether only one BN per Markov equivalence class should be feasible.
+         consfile (str/None): If not None then a file containing user constraints
+         pruning(bool): Whether not to include parent sets which cannot be optimal.
+         edge_penalty(float): The local score for a parent set with `p` parents will be reduced by `p*edge_penalty`.
+         plot (bool): Whether to plot learned BNs once they have been learned.
+        '''
         argdkt = locals()
         data_input_args_dkt = _subdict(argdkt,self.data_input_args)
         scoring_args_dkt = _subdict(argdkt,self.scoring_args)
         learning_args_dkt = _subdict(argdkt,self.learning_args)
-        
-        self.input_discrete_data(data_source, **data_input_args_dkt)
+
+        if data_source is not None:
+            self.input_discrete_data(data_source, **data_input_args_dkt)
         self.input_local_scores(self.return_local_scores(**scoring_args_dkt))
         if learn:
             self.learn(**learning_args_dkt)
         else:
             self.make_basic_model(**learning_args_dkt)
 
-    def use_continuous_data(self, data_source, learn=True, variables=None, palim=3,
+    def use_continuous_data(self, data_source=None, learn=True, variables=None, palim=3,
                             nsols=1, kbest=False, mec=False, consfile=None, pruning=True, edge_penalty=0.0, plot=True):
+        '''
+        With default parameters learns a BN from continuous data
 
+        If `learn=False` then data is read in, local scores are computed and a MIP instance is created, **but not solved**.
+        Use `learn=False` if you wish to add, say, extra variables and constraints before solving. You can do the solving when you
+        are ready by calling :py:meth:`learn <gobnilp.Gobnilp.learn>` with `make_basic_model=False`.
+
+        Args:
+         data_source (str/array_like) : If not None, name of the file containing the continuous data or an array_like object.
+                               If None, then it is assumed that countinuous data has previously been read in.
+         learn(bool): Whether to learn a BN (see above).
+         variables (iterable/None): Names for the variables in the data. If `data_source` is a filename then 
+                               this value is ignored and the variable names are those given in the file. 
+                               Otherwise if None then the variable names will X1, X2, ...
+         palim (int/None): If an integer, this should be the maximum size of parent sets.
+         nsols (int): Number of BNs to learn
+         kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
+         mec (bool): Whether only one BN per Markov equivalence class should be feasible.
+         consfile (str/None): If not None then a file containing user constraints
+         pruning(bool): Whether not to include parent sets which cannot be optimal.
+         edge_penalty(float): The local score for a parent set with `p` parents will be reduced by `p*edge_penalty`.
+         plot (bool): Whether to plot learned BNs once they have been learned.
+        '''
         argdkt = locals()
         scoring_args_dkt = _subdict(argdkt,self.scoring_args)
         scoring_args_dkt['local_score_type'] = "BGe"
         learning_args_dkt = _subdict(argdkt,self.learning_args)
-        
-        self.input_continuous_data(data_source,varnames=variables)
+
+        if data_source is not None:
+            self.input_continuous_data(data_source,varnames=variables)
         self.input_local_scores(self.return_local_scores(**scoring_args_dkt))
         if learn:
             self.learn(**learning_args_dkt)
