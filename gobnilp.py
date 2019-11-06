@@ -3064,7 +3064,7 @@ class Gobnilp(Model):
             #    self.add_constraints_chordal()
             #    self._max_cluster_size = 3
         if consfile is not None:
-            self.add_user_cons(consfile)
+            self.input_user_conss(consfile)
         self._stage = 3
 
     def use_discrete_data(self, data_source=None, learn=True, read_data=True, variables = None,
