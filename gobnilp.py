@@ -42,7 +42,7 @@ except ImportError as e:
     print(e)
 
 try:
-    from discrete_scoring import BDeuScoresGenerator
+    from discrete_scoring import BDeu
 except ImportError as e:
     print("Could not import BDeu score generating code!")
     print(e)
@@ -1590,7 +1590,7 @@ class Gobnilp(Model):
                               (This value is ignored if ``use_adtree=False``.)
         '''
         # Note cannot currently read data from standard in - must be in a file
-        self._local_scores_generator = BDeuScoresGenerator(data_source, variables=variables, arities=arities, use_adtree=use_adtree, rmin=rmin, max_palim_size=palim)
+        self._local_scores_generator = BDeu(data_source, variables=variables, arities=arities, use_adtree=use_adtree, rmin=rmin, max_palim_size=palim)
         self._set_stage_bn_variables()
 
     def write_local_scores(self,f):

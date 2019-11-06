@@ -358,14 +358,14 @@ def fromdataframe(df):
         arities.append(len(vals.cat.categories))
     return np.transpose(np.array(cols,dtype=np.uint32)), arities, varnames
 
-class BDeuScoresGenerator:
+class BDeu:
     """
-    Used to calcuate BDeuScores for a dataset of complete discrete data
+    Used to calcuate BDeu scores for a dataset of complete discrete data
     """
     
     def __init__(self, data_source, variables = None, arities = None,
                  use_adtree = False, rmin=32, max_palim_size=None):
-        '''Initialises a `BDeuScoresGenerator` object.
+        '''Initialises a `BDeu` object.
 
         If  `data_source` is a filename then it is assumed that:
 
@@ -792,7 +792,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     
-    local_scores_generator = BDeuScoresGenerator(args.data_file, use_adtree = args.adtree, rmin=args.rmin, max_palim_size=args.palim)
+    local_scores_generator = BDeu(args.data_file, use_adtree = args.adtree, rmin=args.rmin, max_palim_size=args.palim)
     local_scores = local_scores_generator.bdeu_scores(args.alpha,args.palim)
     save_local_scores(local_scores, args.scores_file)
     
