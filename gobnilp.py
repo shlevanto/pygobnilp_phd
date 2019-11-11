@@ -1392,7 +1392,7 @@ class Gobnilp(Model):
             forbidden_pairs = frozenset(
                 [frozenset((x,y)) for (a,b,s) in self.obligatory_conditional_independences if child in s for x in a for y in b])
             pot_parents = bn_variables_set - forbidden_parents
-            
+
             child_dkt = {}
             for pasize in range(palim+1):
                 for parents in combinations(pot_parents,pasize):
@@ -3106,6 +3106,8 @@ class Gobnilp(Model):
         scoring_args_dkt = _subdict(argdkt,self.scoring_args)
         learning_args_dkt = _subdict(argdkt,self.learning_args)
 
+        self._consfile = consfile
+        
         if data_source is not None:
             self.input_discrete_data(data_source, **data_input_args_dkt)
         self.input_local_scores(self.return_local_scores(**scoring_args_dkt))
@@ -3144,6 +3146,8 @@ class Gobnilp(Model):
         scoring_args_dkt['local_score_type'] = "BGe"
         learning_args_dkt = _subdict(argdkt,self.learning_args)
 
+        self._consfile = consfile
+        
         if data_source is not None:
             self.input_continuous_data(data_source,varnames=variables)
         self.input_local_scores(self.return_local_scores(**scoring_args_dkt))
