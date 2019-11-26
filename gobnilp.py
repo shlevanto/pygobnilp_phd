@@ -926,7 +926,9 @@ class Gobnilp(Model):
                 p,v = field.split('=')
                 fn = self.getParamInfo(p)[1]
                 self.setParam(p,fn(v))
-        
+
+        self._stage = 'no data'
+                
     def _getmipvars(self,vtype):
         try:
             return self._mipvars[vtype]
@@ -2886,6 +2888,9 @@ class Gobnilp(Model):
          edge_penalty(float): The local score for a parent set with `p` parents will be reduced by `p*edge_penalty`.
          plot (bool): Whether to plot learned BNs/CPDAGs once they have been learned.
          '''
+
+        if start != self._stage:
+            raise ValueError("Current stage is {0}, but trying to start from {1}".format(self._stage,start))
         
         for stage, stage_str in [(start,'Starting'),(end,'End')]:
             if stage not in self.stages_set:

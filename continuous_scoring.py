@@ -131,7 +131,10 @@ class BGe(ContinuousData):
         '''
         
         self.__dict__.update(data.__dict__)
-      
+        p = self._p
+        n = self._n
+        data = self._data
+        
         # No need to explicitly represent nu if it the sample mean vector
         if nu is not None and len(nu) != p:
             raise ValueError("nu is wrong length. Expected length is {0}, but got length of {1}".format(p,len(nu)))
@@ -140,7 +143,7 @@ class BGe(ContinuousData):
                 raise ValueError("alpha_mu must be positive, but is {0}".format(alpha_mu))
         
         if alpha_omega is None:
-            alpha_omega = p + 2
+            alpha_omega = self._p + 2
         else:
             if type(alpha_omega) != int:
                 raise ValueError("alpha_omega must be an integer but is {1}".format(alpha_omega))
@@ -236,16 +239,17 @@ class BGe(ContinuousData):
         return component
             
     def bge_score(self,child,parents):
-        '''The BGe score for a given family
+        '''The BGe score for a given family, plus upper bound
 
         Args:
          child (str): The child variable
          parents (iter) : The parents
        
         Returns:
-         float: The BGe score for the family for current data (using current hyperparameters)
+         tuple: First element of tuple isf the BGe score for the family for current data (using current hyperparameters)
+          Second element is an upper bound.
         '''
         return (self._log_prefactors[len(parents)] +
                 self.bge_component(list(parents)+[child]) -
-                self.bge_component(parents))
+                self.bge_component(parents), None)
 
