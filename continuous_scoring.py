@@ -27,28 +27,17 @@ from math import log, pi
 from scipy.special import gammaln
 import numpy as np
 import pandas as pd
-        
-class BGe:
 
-    def __init__(self, data, varnames=None, nu=None, alpha_mu = 1.0, alpha_omega = None, prior_matrix=None):
-        '''Create a BGe scoring object
+class ContinuousData:
+
+    def __init__(self, data, varnames=None):
+        '''Continuous data
 
         Args:
             data (numpy.ndarray/str) : The data (either as an array or a filename containing the data)
             varnames (iterable/None) : The names of the variables. If not given
              (=None) and `data` is not a file having the variable names as a header 
              then the variables are named X1, X2, X3, etc
-            nu (numpy.ndarray/None) : the mean vector for the normal part of the 
-             normal-Wishart prior. If not given (=None), then the sample mean
-             is used.
-            alpha_mu (float) : imaginary sample size for the normal part of the
-              normal-Wishart prior. 
-            alpha_omega (int/None) : The degrees of freedom for the Wishart 
-             part of the normal-Wishart prior. Must exceed p-1 where p is the number of 
-             variables. If not given (=None) then `alpha_omega` is set to p+2.
-            prior_matrix (numpy.ndarray/None) : The prior matrix 'T'
-             for the Wishart part of the normal-Wishart prior. If not given (=None), then
-             this is set to t*I_n where t = alpha_mu*(alpha_omega-n-1)/(alpha_mu+1)
         '''
         if type(data) == str:
             skiprows = 0
@@ -76,14 +65,79 @@ class BGe:
             varnames = tuple(('X{0}'.format(i+1) for i in range(p)))
         if len(varnames) != p:
             raise ValueError("Expected {0} variable names, got {1}".format(p,len(varnames)))
+    
+        # store everything
+        self._n = n
+        self._p = p
+        self._variables = varnames
+        self._varidx = {}
+        for i, v in enumerate(varnames):
+            self._varidx[v] = i
+        self._cache = {}
 
+    def variables(self):
+        '''
+        Returns:
+         list : The variable names
+        '''
+        return self._variables
+
+    def rawdata(self):
+        '''
+        The data without any information about variable names.
+
+        Returns:
+         numpy.ndarray: The data
+        '''
+        return self._data
+
+    def data(self):
+        '''
+        The data as a Pandas dataframe.
+
+        Returns:
+         pandas.DataFrame: The data
+        '''
+
+        return pd.DataFrame(self._data,columns=self._variables)
+    
+    def varidx(self):
+        '''
+        Returns:
+         dict : Maps a variable name to its position in the list of variable names.
+        '''
+
+        return self._varidx
+
+        
+class BGe(ContinuousData):
+
+    def __init__(self, data, nu=None, alpha_mu = 1.0, alpha_omega = None, prior_matrix=None):
+        '''Create a BGe scoring object
+
+        Args:
+            data (ContinuousData) : The data
+            nu (numpy.ndarray/None) : the mean vector for the normal part of the 
+             normal-Wishart prior. If not given (=None), then the sample mean
+             is used.
+            alpha_mu (float) : imaginary sample size for the normal part of the
+              normal-Wishart prior. 
+            alpha_omega (int/None) : The degrees of freedom for the Wishart 
+             part of the normal-Wishart prior. Must exceed p-1 where p is the number of 
+             variables. If not given (=None) then `alpha_omega` is set to p+2.
+            prior_matrix (numpy.ndarray/None) : The prior matrix 'T'
+             for the Wishart part of the normal-Wishart prior. If not given (=None), then
+             this is set to t*I_n where t = alpha_mu*(alpha_omega-n-1)/(alpha_mu+1)
+        '''
+        
+        self.__dict__.update(data.__dict__)
+      
         # No need to explicitly represent nu if it the sample mean vector
         if nu is not None and len(nu) != p:
             raise ValueError("nu is wrong length. Expected length is {0}, but got length of {1}".format(p,len(nu)))
 
         if not alpha_mu > 0:
                 raise ValueError("alpha_mu must be positive, but is {0}".format(alpha_mu))
-
         
         if alpha_omega is None:
             alpha_omega = p + 2
@@ -124,9 +178,6 @@ class BGe:
             for pasize in range(p):
                 log_prefactors[pasize] += (const_term + pasize) * logt
 
-
-            
-        
         # compute posterior matrix 'R'
         # need rowvar=F since each row (not column) is a datapoint
         s_n = (n-1) * np.cov(data,rowvar=False)
@@ -141,52 +192,13 @@ class BGe:
         #print(posterior_matrix)
             
         # store everything
-        self._n = n
-        self._p = p
         self._alpha_mu = alpha_mu
         self._alpha_omega = alpha_omega
         self._log_prefactors = log_prefactors
         self._prior_matrix = prior_matrix # NB could be None
         self._posterior_matrix = posterior_matrix
-        self._variables = varnames
-        self._varidx = {}
-        for i, v in enumerate(varnames):
-            self._varidx[v] = i
         self._cache = {}
 
-    def variables(self):
-        '''
-        Returns:
-         list : The variable names
-        '''
-        return self._variables
-
-    def rawdata(self):
-        '''
-        The data without any information about variable names.
-
-        Returns:
-         numpy.ndarray: The data
-        '''
-        return self._data
-
-    def data(self):
-        '''
-        The data as a Pandas dataframe.
-
-        Returns:
-         pandas.DataFrame: The data
-        '''
-
-        return pd.DataFrame(self._data,columns=self._variables)
-    
-    def varidx(self):
-        '''
-        Returns:
-         dict : Maps a variable name to its position in the list of variable names.
-        '''
-
-        return self._varidx
     
     def bge_component(self,vs):
         '''Compute the BGe component for given variables

@@ -358,14 +358,14 @@ def fromdataframe(df):
         arities.append(len(vals.cat.categories))
     return np.transpose(np.array(cols,dtype=np.uint32)), arities, varnames
 
-class BDeu:
+class DiscreteData:
     """
-    Used to calcuate BDeu scores for a dataset of complete discrete data
+    Complete discrete data
     """
     
-    def __init__(self, data_source, variables = None, arities = None,
+    def __init__(self, data_source, varnames = None, arities = None,
                  use_adtree = False, rmin=32, max_palim_size=None):
-        '''Initialises a `BDeu` object.
+        '''Initialises a `DiscreteData` object.
 
         If  `data_source` is a filename then it is assumed that:
 
@@ -381,7 +381,7 @@ class BDeu:
             Either a filename containing the data or an array_like object or
             Pandas data frame containing it.
 
-          variables (iter) : 
+          varnames (iter) : 
            Variable names corresponding to columns in the data.
            Ignored if `data_source` is a filename or Pandas DataFrame (since they 
            will supply the variable names). Otherwise if not supplied (`=None`)
@@ -415,7 +415,7 @@ class BDeu:
                 line = file.readline().rstrip()
                 while line[0] == '#':
                     line = file.readline().rstrip()
-                variables = line.split()
+                varnames = line.split()
                 line = file.readline().rstrip()
                 while line[0] == '#':
                     line = file.readline().rstrip()
@@ -441,7 +441,7 @@ class BDeu:
 
 
                 converter_dkt = {}
-                for i in range(len(variables)):
+                for i in range(len(varnames)):
                     # trick to create a function 'with memory'
                     converter_dkt[i] = Convert()
                 data = np.loadtxt(file,
@@ -450,7 +450,7 @@ class BDeu:
                                   comments='#')
 
         elif type(data_source) == pd.DataFrame:
-            data, arities, variables = fromdataframe(data_source)
+            data, arities, varnames = fromdataframe(data_source)
         else:
             data = np.array(data_source,dtype=np.uint32)
         self._data = data
@@ -459,11 +459,11 @@ class BDeu:
             self._arities = np.array([x+1 for x in data.max(axis=1)],dtype=np.uint32)
         else:
             self._arities = np.array(arities,dtype=np.uint32)
-        if variables is None:
+        if varnames is None:
             self._variables = ['X{0}'.format(i) for i in range(1,len(self._arities)+1)]
         else:
-            # order of variables determined by header line in file, if file used
-            self._variables = variables
+            # order of varnames determined by header line in file, if file used
+            self._variables = varnames
         self._varidx = {}
         for i, v in enumerate(self._variables):
             self._varidx[v] = i
@@ -485,6 +485,7 @@ class BDeu:
             self._contab_generator = ContabGenerator(data, self._arities)
 
         self._atoms = get_atoms(data,self._arities)
+
         #print(self._atoms)
         #self._bdeu_global_ubs = self.get_bdeu_global_ubs()
         #self._almost_atoms = self.get_almost_atoms()
@@ -495,57 +496,6 @@ class BDeu:
         #    for w in v:
         #        print(w)
         #    print()
-
-    def upper_bound_james(self,child,parents,alpha=1.0):
-        """
-        Compute an upper bound on proper supersets of parents
-
-        Args:
-         child (str) : Child variable.
-         parents (iter) : Parent variables
-         alpha (float) : ESS value for BDeu score
-
-        Returns:
-         float : An upper bound on the local score for parent sets
-         for `child` which are proper supersets of `parents`
-
-        """
-        child_idx = self._varidx[child]
-        pa_idxs = sorted([self._varidx[v] for v in parents])
-        for pa_idx in pa_idxs:
-            alpha /= self._arities[pa_idx]
-        r = self._arities[child_idx]
-
-        # each element of atoms_ints is a tuple of ints:
-        # (fullinst,childvalcounts,sum(childvalcounts),ok_first)
-        # each element of atoms_floats is:
-        # sum_n n*log(n/tot), where sum is over childvalcounts
-        # and tot = sum(childvalcounts)
-        atoms_ints, atoms_floats = self._atoms[0][child_idx], self._atoms[1][child_idx]
-
-        if len(atoms_floats) == 0:
-            return 0.0
-
-        # remove cols corresponding to non-parents and order
-        p = len(self._arities)
-        end_idxs = list(range(p,p+r+2))
-        #print(end_idxs)
-        atoms_ints_redux = atoms_ints[:,pa_idxs+end_idxs]
-        if len(pa_idxs) > 0:
-            idxs = np.lexsort([atoms_ints_redux[:,col] for col in range(len(pa_idxs))])
-        else:
-            idxs = list(range(len(atoms_floats)))
-
-        #print(atoms_ints)
-
-        #pa_idxs.append(1) # add dummy element
-        return upper_bound_james_fun(atoms_ints_redux,atoms_floats,len(pa_idxs),alpha,r,idxs)
-        
-        # this_ub = 0.0
-        # for dists in self._atoms_for_parents(child,parents).values():
-        #     this_ub += ub(dists,alpha,r)
-        # return this_ub
-
         
     def _atoms_for_parents(self,child,parents):
         """
@@ -699,7 +649,105 @@ class BDeu:
 #        variables = np.array([self._varidx[x] for x in list(parents)+[child]], dtype=np.uint32)
 #        contab = self._contab_generator.make_contab(
     
-    def bdeu_score_component(self,alpha,variables):
+
+class BDeu(DiscreteData):
+    """
+    Discrete data with attributes and methods for BDeu scoring
+    """
+
+    def __init__(self,data,alpha=1.0):
+        '''Initialises a `BDeu` object.
+
+        Args:
+         data (DiscreteData): data
+         
+         alpha (float): The *equivalent sample size*
+        '''
+        self.__dict__.update(data.__dict__)
+        self.alpha = alpha
+        self._cache = {}
+
+    @property
+    def alpha(self):
+        '''float: The *equivalent sample size* used for BDeu scoring'''
+        return self._alpha
+
+    @alpha.setter
+    def alpha(self, alpha):
+        '''Set the *equivalent sample size* for BDeu scoring
+        
+        Args:
+         alpha (float): the *equivalent sample size* for BDeu scoring
+
+        Raises:
+         ValueError: If `alpha` is not positive
+        '''
+        if not alpha > 0:
+            raise ValueError('alpha (equivalent sample size) must be positive but was give {0}'.format(alpha))
+        self._alpha = alpha
+
+    def clear_cache():
+        '''Empty the cache of stored BDeu component scores
+
+        This should be called, for example, if new scores are being computed
+        with a different alpha value
+        '''
+        self._cache = {}
+        
+    def upper_bound_james(self,child,parents,alpha=None):
+        """
+        Compute an upper bound on proper supersets of parents
+
+        Args:
+         child (str) : Child variable.
+         parents (iter) : Parent variables
+         alpha (float) : ESS value for BDeu score. If not supplied (=None)
+          then the value of `self.alpha` is used.
+
+        Returns:
+         float : An upper bound on the local score for parent sets
+         for `child` which are proper supersets of `parents`
+
+        """
+        if alpha is None:
+            alpha = self._alpha
+        child_idx = self._varidx[child]
+        pa_idxs = sorted([self._varidx[v] for v in parents])
+        for pa_idx in pa_idxs:
+            alpha /= self._arities[pa_idx]
+        r = self._arities[child_idx]
+
+        # each element of atoms_ints is a tuple of ints:
+        # (fullinst,childvalcounts,sum(childvalcounts),ok_first)
+        # each element of atoms_floats is:
+        # sum_n n*log(n/tot), where sum is over childvalcounts
+        # and tot = sum(childvalcounts)
+        atoms_ints, atoms_floats = self._atoms[0][child_idx], self._atoms[1][child_idx]
+
+        if len(atoms_floats) == 0:
+            return 0.0
+
+        # remove cols corresponding to non-parents and order
+        p = len(self._arities)
+        end_idxs = list(range(p,p+r+2))
+        #print(end_idxs)
+        atoms_ints_redux = atoms_ints[:,pa_idxs+end_idxs]
+        if len(pa_idxs) > 0:
+            idxs = np.lexsort([atoms_ints_redux[:,col] for col in range(len(pa_idxs))])
+        else:
+            idxs = list(range(len(atoms_floats)))
+
+        #print(atoms_ints)
+
+        #pa_idxs.append(1) # add dummy element
+        return upper_bound_james_fun(atoms_ints_redux,atoms_floats,len(pa_idxs),alpha,r,idxs)
+        
+        # this_ub = 0.0
+        # for dists in self._atoms_for_parents(child,parents).values():
+        #     this_ub += ub(dists,alpha,r)
+        # return this_ub
+
+    def bdeu_score_component(self,variables,alpha=None):
         '''Compute the BDeu score component for a set of variables
         (from the current dataset).
 
@@ -707,34 +755,94 @@ class BDeu:
         the BDeu score component for Pa subtracted from that for v+Pa
         
         Args:
-         alpha (float) : The effective sample size parameter for the BDeu score
          variables (iter) : The names of the variables
+         alpha (float) : The effective sample size parameter for the BDeu score.
+          If not supplied (=None)
+          then the value of `self.alpha` is used.
+
 
         Returns:
          float : The BDeu score component.
         '''
-        
+        if alpha is None:
+            alpha = self._alpha
+
         if len(variables) == 0:
             return lgamma(alpha) - lgamma(alpha + self._data_length), 1
         else:
             variables = np.array([self._varidx[x] for x in list(variables)], dtype=np.uint32)
             variables.sort() #AD tree requires variables to be in order
             return _bdeu_score_component(self._contab_generator, self._arities, variables, alpha, self.process_contab_function)
-    
-    def bdeu_scores(self,alpha=1.0,palim=None,pruning=True):
+
+    def bdeu_score(self, child, parents):
+
+        parents_set = frozenset(parents)
+        try:
+            parent_score, _ = self._cache[parents_set]
+        except KeyError:
+            parent_score, non_zero_count = self.bdeu_score_component(parents)
+            self._cache[parents_set] = parent_score, non_zero_count
+
+        family_set = frozenset((child,)+parents)
+        try:
+            family_score, non_zero_count = self._cache[family_set]
+        except KeyError:
+            family_score, non_zero_count = self.bdeu_score_component((child,)+parents)
+            self._cache[family_set] = family_score, non_zero_count
+
+        # get best lower bound given that early parents will not be added
+        # last_idx = -1
+        # for pa in parents:
+        #     last_idx = max(last_idx,generator._varidx[pa])
+        # almost_global_ubs = generator._bdeu_almost_global_ubs[generator._varidx[child]]
+        # almost_global_ub = 0.0
+        # for i, v in enumerate(generator.variables()):
+        #     if i == last_idx:
+        #         break
+        #     if not(v == child or v in parents_set):
+        #         almost_global_ub = min(almost_global_ub,almost_global_ubs[i])
+
+
+        # global_ub = generator._bdeu_global_ubs[generator._varidx[child]]
+        simple_ub = -log(self.arity(child)) * non_zero_count
+
+        james_ub = self.upper_bound_james(child,parents)
+        
+        #print(simple_ub,global_ub,almost_global_ub,james_ub)
+        
+        
+        # all scores for this child no better than the global or almost global ub
+        #assert parent_score - family_score <= global_ub
+        #assert parent_score - family_score <= almost_global_ub
+
+        #return parent_score - family_score, None
+        #return parent_score - family_score, simple_ub
+        #return parent_score - family_score, min(simple_ub,global_ub)
+        #return parent_score - family_score, min(simple_ub,global_ub,almost_global_ub)
+        #print(parent_score - family_score,simple_ub,james_ub)
+        return parent_score - family_score, min(simple_ub,james_ub)
+
+        
+    def bdeu_scores(self,palim=None,pruning=True,alpha=None):
         """
         Exhaustively compute all BDeu scores for all child variables and all parent sets up to size `palim`.
         If `pruning` delete those parent sets which have a subset with a better score.
         Return a dictionary dkt where dkt[child][parents] = bdeu_score
         
         Args:
-         alpha (float) : ESS for BDeu score
          palim (int/None) : Limit on parent set size
          pruning (bool) : Whether to prune
+         alpha (float) : ESS for BDeu score. 
+          If not supplied (=None)
+          then the value of `self.alpha` is used.
+
+
 
         Returns:
          dict : dkt where dkt[child][parents] = bdeu_score
         """
+        if alpha is None:
+            alpha = self._alpha
         
         if palim == None:
             palim = self._arities.size - 1
@@ -781,6 +889,7 @@ class BDeu:
             
         return score_dict
 
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='BDeu local score generation (for Bayesian network learning)')
     parser.add_argument('data_file', help="Data file in GOBNILP format")
@@ -793,6 +902,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     local_scores_generator = BDeu(args.data_file, use_adtree = args.adtree, rmin=args.rmin, max_palim_size=args.palim)
-    local_scores = local_scores_generator.bdeu_scores(args.alpha,args.palim)
+    local_scores = local_scores_generator.bdeu_scores(alpha=args.alpha,palim=args.palim)
     save_local_scores(local_scores, args.scores_file)
     
