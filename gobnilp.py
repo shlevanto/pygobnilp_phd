@@ -873,7 +873,6 @@ class Gobnilp(Model):
         #self.Params.Presolve = 2
         #self.Params.PreDual = 2
         self.Params.ZeroHalfCuts = 2
-        self.Params.StrongCGCuts = 2
         
         self.Params.MIPGap = 0
         self.Params.MIPGapAbs = 0
