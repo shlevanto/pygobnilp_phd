@@ -869,10 +869,11 @@ class Gobnilp(Model):
         self.Params.PreCrush = 1  # since (always) adding cuts
         self.Params.CutPasses = 100000    # want to allow many cuts
         self.Params.GomoryPasses = 100000 # want to allow many cuts
-        #self.Params.MIPFocus = 2          # focus on proving optimality
+        self.Params.MIPFocus = 2          # focus on proving optimality
         #self.Params.Presolve = 2
         #self.Params.PreDual = 2
-        #self.Params.ZeroHalfCuts = 2
+        self.Params.ZeroHalfCuts = 2
+        self.Params.StrongCGCuts = 2
         
         self.Params.MIPGap = 0
         self.Params.MIPGapAbs = 0
