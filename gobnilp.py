@@ -85,7 +85,7 @@ parser.add_argument('-s','--scores', action="store_true", help="The input consis
 parser.add_argument('-b','--bge', action="store_true", help="The input consists of continuous, not discrete, data and BGe scoring will be used")
 parser.add_argument('-v', '--verbose', action="count", default=0, help="How verbose to be")
 parser.add_argument('-g', '--gurobi_output', action="store_true", help="Whether to show Gurobi output")
-parser.add_argument('-o', '--output', help="PDF file for learned BN")
+parser.add_argument('-o', '--output_file', help="PDF (or DOT) file for learned BN")
 parser.add_argument('--consfile', help="Python module defining user constraints")
 parser.add_argument('--params', help="Gurobi parameter settings")
 parser.add_argument('--starts', help="Starting DAG(s) in bnlearn modelstring format")
@@ -101,9 +101,6 @@ parser.add_argument('--alpha_mu', type=float, default=1.0, help = "imaginary sam
 parser.add_argument('--alpha_omega', type=int, default=None, help = "Degrees of freedom for the Wishart part of the normal-Wishart prior for BGe scoring. Must be at least the number of variables. If None then set to 2 more than the number of variables.")
 
 # utility functions
-
-def _subdict(dkt,keys):
-    return {k:dkt[k] for k in keys} 
 
 def _enforce_palim(dkt,palim):
     for scored_parentsets in dkt.values():
@@ -154,7 +151,7 @@ def read_local_scores(f,verbose=False):
     family_scores = {}
     n = int(f.readline())
     if verbose:
-        print('Problem has %s variables' % n, file=sys.stderr)
+        print('Problem has {0} variables'.format(n), file=sys.stderr)
     fields = f.readline().rstrip().split()
     def init(fields):
         # no check that there are only two fields
@@ -472,9 +469,9 @@ class Gobnilp(Model):
 
     # each stage indicates what is available at that stage
     stages = (
-        'no data', 'data',  'local scores computed', 'local scores stored',
+        'no data', 'data',  'local scores',
         'MIP model', 'MIP solution', 'BN(s)',
-        'CPDAG(s)', 'output shown')
+        'CPDAG(s)', 'output shown', 'output written')
 
     stages_set = frozenset(stages)
     
@@ -593,10 +590,10 @@ class Gobnilp(Model):
          bnvars (iter): A subset of the existing BN variables 
 
         Raises:
-         ValueError: If `bnvars` is not a subset of the existing BN variables
+         ValueError: If `bnvars` is not a subset of the variables in the data
         '''
-        if not frozenset(bnvars).issubset(self.bn_variables):
-            raise ValueError('{0} is not a subset of {1}'.format(bnvars,self.bn_variables))
+        if not frozenset(bnvars).issubset(self._data.variables()):
+            raise ValueError('{0} is not a subset of {1}'.format(bnvars,self._data.variables()))
         else:
             self._bn_variables = sorted(bnvars)
         
@@ -872,7 +869,7 @@ class Gobnilp(Model):
         self.Params.PreCrush = 1  # since (always) adding cuts
         self.Params.CutPasses = 100000    # want to allow many cuts
         self.Params.GomoryPasses = 100000 # want to allow many cuts
-        self.Params.MIPFocus = 2          # focus on proving optimality
+        #self.Params.MIPFocus = 2          # focus on proving optimality
         #self.Params.Presolve = 2
         #self.Params.PreDual = 2
         #self.Params.ZeroHalfCuts = 2
@@ -1032,7 +1029,7 @@ class Gobnilp(Model):
                     self.add_forbidden_ancestor(x,y)
                     self.add_forbidden_ancestor(y,x)
 
-        # could do more propagtion here
+        # could do more propagation here
         
         self._obligatory_conditional_independences.add((aset,bset,sset))
             
@@ -1040,8 +1037,6 @@ class Gobnilp(Model):
         self.set_starts([dag])
         
     def set_starts(self,dags):
-        if hasattr(self,'_family_scores'):
-            raise Gobnilp.StageError(self.stage,"Can't set starting solutions since local scores already computed")
         for dag in dags:
             if type(dag) == str:
                 # assume a 'model string'
@@ -1069,7 +1064,6 @@ class Gobnilp(Model):
         '''
         self._set_mip_starts()
         super(Gobnilp,self).optimize(lambda model, where: model._mycallback(where))
-        self._stage = 4
 
     
     def _getidxdicts(self,dtype):
@@ -1326,8 +1320,7 @@ class Gobnilp(Model):
         return score_dkt
         
         
-    def return_local_scores(self,local_score_fun,palim=3,
-                            pruning=True,edge_penalty=0.0):
+    def return_local_scores(self,local_score_fun,palim=3,pruning=True):
         """
         Return a dictionary for each child variable where the keys
         are the child variables and the values map parent sets to 
@@ -1348,7 +1341,6 @@ class Gobnilp(Model):
              and `ub` is either `None` or an upper bound on the local score for `child` with any proper superset of `parents`
             palim(int/None): If not None then the maximal size of a parent set
             pruning(bool): Whether not to include parent sets which cannot be optimal.
-            edge_penalty(float): The local score for a parent set with `p` parents will be reduced by `p*edge_penalty`.
 
         Returns:
            dict: A dictionary `dkt` such that `dkt[child][parentset]` is the local score for `child` having parent set `parentset` (where `parentset` is a frozenset).
@@ -1361,30 +1353,17 @@ class Gobnilp(Model):
         else:
             palim = min(palim,p-1)
 
-            
-        # take any non-zero edge penalty into account
-        if edge_penalty != 0.0:
-            def local_score_edge(child,parents):
-                score, ub = local_score_fun(child,parents)
-                pasize = len(parents)
-                if ub is not None:
-                    ub -= edge_penalty * (pasize+1)
-                return score - edge_penalty * pasize, ub
-        else:
-            local_score_edge = local_score_fun
-
-        
         if pruning:
-            skores =  self._return_pruned_local_scores(local_score_edge,palim)
+            skores =  self._return_pruned_local_scores(local_score_fun,palim)
         else:
-            skores =  self._return_unpruned_local_scores(local_score_edge,palim)
+            skores =  self._return_unpruned_local_scores(local_score_fun,palim)
 
         # now ensure that scores are available for all families in the 'extra' dags in self._starts (represented as dictionaries)
         for dag in self._starts:
             for child in dag.nodes:
                 parents = frozenset(dag.predecessors(child))
                 if parents not in skores[child]:
-                    skores[child][parents] = local_score_edge(child,parents)[0]
+                    skores[child][parents] = local_score_fun(child,parents)[0]
                     
         return skores
     
@@ -1577,7 +1556,6 @@ class Gobnilp(Model):
             nxs.append(self.to_nx())
         nxs = tuple(nxs)
         self._nxs = nxs
-        self._stage = 5
 
     make_bns = all_to_nx
     
@@ -1684,9 +1662,6 @@ class Gobnilp(Model):
              family variables for any given child are (totally) ordered according to local score,
              with the higher scoring families given higher branching priority than lower ones.
         '''
-        if 'family' in self._mipvars:
-            raise Gobnilp.StageError(self.stage,"Family variables for the Gobnilp object called '{0}'".format(self.ModelName) +
-                                     " have already been created.")
         
         family = {}
         fv_list = []
@@ -1962,8 +1937,10 @@ class Gobnilp(Model):
         '''
         self.add_variables_family()
         #self.add_variables_family(best_first_branch_priority=True)
-        self.add_variables_arrow(branch_priority=10)
-        self.add_variables_adjacency(branch_priority=10)
+        #self.add_variables_arrow(branch_priority=10)
+        #self.add_variables_adjacency(branch_priority=10)
+        self.add_variables_arrow()
+        self.add_variables_adjacency()
         #self.add_variables_total_order()
         #self.add_variables_gen()
         #self.add_variables_gendiff()
@@ -2703,13 +2680,14 @@ class Gobnilp(Model):
             # only add one constraint
             nsols = 1
         family = self.family
+        #print('Cutting = ', cutting,'Solutions found', nsols)
         for i in range(nsols):
             subip.Params.SolutionNumber = i
             cluster = []
             for v, yv in list(y.items()):
                 if yv.Xn > 0.5:
                     cluster.append(v)
-            #print 'Cluster', cluster
+            #print('Cluster', cluster)
             cluster_set = frozenset(cluster)
             rhs = len(cluster)-1
             lexpr = LinExpr()
@@ -2717,10 +2695,10 @@ class Gobnilp(Model):
                 intersecting_fvs = []
                 non_intersecting_fvs = []
                 for parent_set, fv in list(family[child].items()):
-                    if parent_set & cluster_set:
-                        intersecting_fvs.append(fv)
-                    else:
+                    if cluster_set.isdisjoint(parent_set):
                         non_intersecting_fvs.append(fv)
+                    else:
+                        intersecting_fvs.append(fv)
                 len_i = len(intersecting_fvs)
                 len_ni = len(non_intersecting_fvs)
                 # there is exactly one parent set per child
@@ -2764,7 +2742,7 @@ class Gobnilp(Model):
             if len(x) != 2:
                 raise Gobnilp.UserConstraintError("{0} does not represent an adjacency.".format(x))
             try:
-                self.adjacency[frozenset([x])].lb = 1
+                self.adjacency[frozenset(x)].lb = 1
             except KeyError:
                 [ch,pa] = sorted(x)
                 raise Gobnilp.UserConstraintError("Can't make adjacency {0}-{1} obligatory (perhaps it has been pruned)".format(ch,pa))
@@ -2795,23 +2773,35 @@ class Gobnilp(Model):
         import importlib
         consmod = importlib.import_module(consfile)
         for constype in self.allowed_user_constypes:
-            if 'adjacenc' in constype:
-                fn = 'add_'+constype[:-3]+'y'
-            else:
-                fn = 'add_'+constype[:-1]
-            try:
+            if hasattr(consmod,constype):
+                # construct name of appropriate function
+                # for adding constraints
+                if 'adjacenc' in constype:
+                    fn = 'add_'+constype[:-3]+'y'
+                else:
+                    fn = 'add_'+constype[:-1]
+
                 # call the function 'constype' defined in module
                 # 'consmod' with self as the only argument
-                # conss should represent the relevant constraints
-                # in a form that '_process_user_constraints' understands
-                conss = getattr(consmod,constype)(self)
-                # now add the constraints
-                for cons in conss:
+                # this should return the relevant constraints
+                # in a form that the relevant 'add_...' function understands
+ 
+                for cons in getattr(consmod,constype)(self):
+                    # adding constraint 'cons'
+                    # number of positional arguments varies between
+                    # different add_... functions, hence *cons
                     getattr(self,fn)(*cons)
-            except AttributeError:
-                pass
+
         
-    
+
+    def clear_basic_model(self):
+        '''Removes variables and constraints added by 
+            :py:meth:`make_basic_model <gobnilp.Gobnilp.make_basic_model>`.
+        '''
+        self.remove(self.getVars())
+        self.remove(self.getConstrs())
+        self.remove(self.getGenConstrs())
+        
     def make_basic_model(self, nsols=1, kbest=False, mec=False):
         '''
         Adds standard variables and constraints to the model, together with any user constraints
@@ -2840,8 +2830,9 @@ class Gobnilp(Model):
               varnames = None,
               arities = None, use_adtree=False, rmin=32, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
-              local_scores_source=None,
-              nsols=1, kbest=False, mec=False, consfile=None, pruning=True, edge_penalty=0.0, plot=True):
+              starts=(),local_scores_source=None,
+              nsols=1, kbest=False, mec=False, consfile=None, pruning=True, edge_penalty=0.0, plot=True,
+              output_file=None):
         '''
         Args:
          data_source (str/array_like) : If not None, name of the file containing the discrete data or an array_like object.
@@ -2874,6 +2865,9 @@ class Gobnilp(Model):
          alpha_mu (float): Imaginary sample size value for the Normal part of the normal-Wishart prior for BGe scoring.
          alpha_omega (float/None): Degrees of freedom for the Wishart part of the normal-Wishart prior for BGe scoring. 
                      Must be at least the number of variables. If None then set to 2 more than the number of variables.
+         starts (iter): A sequence of feasible DAGs the highest scoring one of which will be the initial
+            incumbent solution. Each element in the sequence can be either a bnlearn model string or an nx.DiGraph instance.
+            If this value is not empty, a local scoring function must be provided.
          local_scores_source (str/file/dict/None): Ignored if None. If not None then local scores are not computed from data. 
             but come from `local_scores_source`. If a string then the name of a file containing local scores. 
                 If a file then the file containing local scores. 
@@ -2887,10 +2881,10 @@ class Gobnilp(Model):
          pruning(bool): Whether not to include parent sets which cannot be optimal when acyclicity is the only constraint.
          edge_penalty(float): The local score for a parent set with `p` parents will be reduced by `p*edge_penalty`.
          plot (bool): Whether to plot learned BNs/CPDAGs once they have been learned.
+         output_file (str/None): If not None, the name of a file to write the learned BN (the first one if several learned).
+            If the filename ends in '.dot' then a dot file is created. If the filename ends in '.pdf' then a dot file and a PDF is created. 
          '''
 
-        if start != self._stage:
-            raise ValueError("Current stage is {0}, but trying to start from {1}".format(self._stage,start))
         
         for stage, stage_str in [(start,'Starting'),(end,'End')]:
             if stage not in self.stages_set:
@@ -2898,80 +2892,116 @@ class Gobnilp(Model):
         if not self.before(start,end):
             raise ValueError("Starting stage must come before end stage.")
 
+        if self.before(self._stage,start):
+            raise ValueError(
+                "Current stage is {0}, but trying to start from later stage {1}".format(self._stage,start))
+        else:
+            # OK, to perhaps rewind
+            self._stage = start
+        
         if local_score_type != 'BDeu' and local_score_type != 'BGe':
             raise ValueError("Unrecognised scoring function: {0}".format(local_score_type))            
 
         if data_type != 'discrete' and data_type != 'continuous':
             raise ValueError("Unrecognised data type: {0}. Should be either 'discrete' or 'continuous'".format(data_type))            
 
-        # make any user constraints available to all stages of the process
-        self.input_user_conss(consfile)
+        if not (output_file is None or output_file.endswith('.dot') or output_file.endswith('.pdf')):
+            raise ValueError("Unrecognised extension for output file extension {0}, should be '.pdf' or '.dot'".format(output_file))
 
-        current_stage = start
-        
-        if self.between(current_stage,'data',end):
-            if data_source is None:
-                raise ValueError("Learning starting state is 'no data', but no data source has been specified.")  
-            # no data yet, so read it in
-            if data_type == 'discrete':
-                self._data = DiscreteData(data_source, varnames=varnames, arities=arities,                  # reading data
-                                                    use_adtree=use_adtree, rmin=rmin, max_palim_size=palim) # for AD-tree
-            elif data_type == 'continuous':
-                self._data = ContinuousData(data_source, varnames=varnames)
+        if data_source is not None and local_scores_source is not None:
+            raise ValueError("Data source {0} and local scores source {1} both specified. Should specify only one.".format(
+                data_source,local_scores_source))
+            
+        user_conss_read = False
 
-            # BN variables always in order
-            bn_variables = self._data.variables()
-            bn_variables.sort()
-            self._bn_variables = bn_variables
+        if self.between(self._stage,'data',end):
+            if data_source is None and local_scores_source is None:
+                raise ValueError("Learning starting state is 'no data', but no data source or local scores source has been specified.")
+            if local_scores_source is None:
+                # no data yet, so read it in
+                if data_type == 'discrete':
+                    self._data = DiscreteData(data_source, varnames=varnames, arities=arities,                  # reading data
+                                                        use_adtree=use_adtree, rmin=rmin, max_palim_size=palim) # for AD-tree
+                elif data_type == 'continuous':
+                    self._data = ContinuousData(data_source, varnames=varnames)
+
+                # BN variables always in order
+                bn_variables = self._data.variables()
+                bn_variables.sort()
+                self._bn_variables = bn_variables
+
+                # now BN variables have been set can pull in constraints from consfile
+                self.input_user_conss(consfile)
+                user_conss_read = True
             
-            current_stage = 'data'
+            self._stage = 'data'
             
-        if self.between(current_stage,'local scores computed',end):
+        if self.between(self._stage,'local scores',end):
             # no local scores yet, so compute them ...
             if local_scores_source is None:
                 if local_score_type == 'BDeu':
-                    bdeu_obj = BDeu(self._data,alpha=alpha)
-                    local_score_fun = bdeu_obj.bdeu_score
+                    local_score_fun = BDeu(self._data,alpha=alpha).bdeu_score
                 elif local_score_type == 'BGe':
-                    bge_obj = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega)
-                    local_score_fun = bge_obj.bge_score
-                local_scores = self.return_local_scores(local_score_fun,
-                    palim=palim,pruning=pruning,edge_penalty=edge_penalty)
+                    local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
+
+                # take any non-zero edge penalty into account
+                if edge_penalty != 0.0:
+                    def local_score_edge(child,parents):
+                        score, ub = local_score_fun(child,parents)
+                        pasize = len(parents)
+                        if ub is not None:
+                            ub -= edge_penalty * (pasize+1)
+                        return score - edge_penalty * pasize, ub
+                    local_score_fun = local_score_edge
+
+                self.set_starts(starts) #store any initial feasible solutions now so that relevant scores are computed
+                local_scores = self.return_local_scores(local_score_fun,palim=palim,pruning=pruning)
+                
             # ... or read them in
             else:
                 if type(local_scores_source) == dict:
                     local_scores = local_scores_source
                 else:
                     local_scores = read_local_scores(local_scores_source)
+
+                # remove parent sets with too many parents
                 _enforce_palim(local_scores,palim)
-            current_stage = 'local scores computed'
-            
-        if self.between(current_stage,'local scores stored',end):
-            # local scores not stored, so stored them
+                
+                # apply edge penalty if there is one
+                if edge_penalty != 0.0:
+                    for child, scoredparentsets in local_scores.items():
+                        for parentset, skore in scoredparentsets.items():
+                            scoredparentsets[parentset] = skore - (edge_penalty * len(parentset))
+
             self.input_local_scores(local_scores)
-            current_stage = 'local scores stored'
+            if not user_conss_read:
+                self.input_user_conss(consfile)
+                user_conss_read = True
+            self._stage = 'local scores'
 
-        if self.between(current_stage,'MIP model',end):
-            # no MIP model yet, so make one
+        if self.between(self._stage,'MIP model',end):
+            # no MIP model yet, (or we wish to throw away the existing one) so make one
+            self.clear_basic_model()
             self.make_basic_model(nsols=nsols, kbest=kbest, mec=mec)
-            current_stage = 'MIP model'
+            self._stage = 'MIP model'
 
-        if self.between(current_stage,'MIP solution',end):
-            # no MIP solution yet, so solve the MIP instance
+        if self.between(self._stage,'MIP solution',end):
+            # no MIP solution yet (or we wish to throw away existing solution(s)), so reset and solve the MIP instance
+            self.reset()                        # in case we had a previous solution to throw away
             self.optimize()
-            current_stage = 'MIP solution'        # 'MIP solution' just means solving has stopped
+            self._stage = 'MIP solution'        # 'MIP solution' just means solving has stopped
 
-        if self.between(current_stage,'BN(s)',end):
+        if self.between(self._stage,'BN(s)',end):
             # no BNs constructed (from MIP solution), so construct them
             self.all_to_nx()
-            current_stage = 'BN(s)'
+            self._stage = 'BN(s)'
 
-        if self.between(current_stage,'CPDAG(s)',end):
+        if self.between(self._stage,'CPDAG(s)',end):
             # no CPDAGs constructed (from BNs), so construct them
             self.make_cpdags()
-            current_stage = 'CPDAG(s)'
+            self._stage = 'CPDAG(s)'
 
-        if self.between(current_stage,'output shown',end):
+        if self.between(self._stage,'output shown',end):
             # Output (e.g. BNs, CPDAGs) not printed or plotted, so do that
             if self.learned_bns == ():
                 print('No feasible BN found')
@@ -2982,10 +3012,16 @@ class Gobnilp(Model):
                     print(cpdag)
                     if plot:
                         cpdag.plot()
-            current_stage = 'output shown'
+            self._stage = 'output shown'
 
-        self._stage = current_stage
+        if self.between(self._stage,'output written',end):
+            if output_file is not None:
+                if output_file.endswith('.dot'):
+                    self.write_dot(output_file)
+                elif output_file.endswith('.pdf'):
+                    self.write_pdf(output_file)
 
+                    
     def make_cpdags(self):
         '''Create a CPDAG for each learned BN
         '''
@@ -3009,19 +3045,20 @@ if __name__ == '__main__':
     
     model = Gobnilp(verbose=args.verbose,gurobi_output=args.gurobi_output,params=args.params)
 
-    if args.starts:
-        model.set_starts(args.starts.split())
-
+    # arguments common to all types of learning
     argsdict = {}
-    for arg in 'input', 'consfile', 'nsols', 'kbest', 'mec', 'palim':
+    for arg in 'consfile', 'nsols', 'kbest', 'mec', 'palim', 'output_file':
         argsdict[arg] = getattr(args,arg)
         
     if args.scores:
-        argsdict['start'] = 'local scores computed'
-        model.learn(**argsdict)
+        model.learn(local_scores_source=args.input,**argsdict)
     else:
+        # arguments common to learning from data
+        argsdict['data_source'] = args.input
         argsdict['edge_penalty'] = args.edge_penalty
         argsdict['pruning'] = not args.nopruning
+        if args.starts is not None:
+            argsdict['starts'] = args.starts.split()
         if args.bge:
             model.learn(data_type='continuous',local_score_type='BGe',
                         alpha_mu=args.alpha_mu, alpha_omega=args.alpha_omega,
@@ -3030,7 +3067,3 @@ if __name__ == '__main__':
             model.learn(data_type='discrete',local_score_type='BDeu',
                         use_adtree=args.adtree, rmin=args.rmin,
                         alpha=args.alpha,**argsdict)
-            
-
-    if args.output:
-        model.write_pdf(args.output)
