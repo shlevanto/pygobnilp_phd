@@ -2428,8 +2428,8 @@ class Gobnilp(Model):
         matroid_subip.Params.OutputFlag = 0
         matroid_subip.ModelSense = -1
         matroid_subip.Params.Cutoff = -1.5
-        matroid_subip.Params.PoolSolutions = 200
-        #matroid_subip.Params.PoolSearchMode = 1
+        matroid_subip.Params.PoolSolutions = 20
+        matroid_subip.Params.PoolSearchMode = 2
         matroid_subip.Params.TimeLimit = 5
         matroid_subip.Params.MIPFocus = 1
 
@@ -2508,7 +2508,7 @@ class Gobnilp(Model):
                 n = len(parent_set)
                 matroid_subip.addConstr(
                     fv, GRB.LESS_EQUAL, 
-                    LinExpr([1]*(n + n*(n-1)/2),
+                    LinExpr([1]*(n + n*(n-1)//2),
                             [circuits2[frozenset([child,parent])] for parent in parent_set] +
                             [not_circuits2[frozenset([pa1,pa2])] for (pa1,pa2) in combinations(parent_set,2)])
                 )
@@ -2635,8 +2635,8 @@ class Gobnilp(Model):
         subip = Model("subip")
         subip.Params.OutputFlag = 0
         subip.ModelSense = -1
-        subip.Params.PoolSolutions = 200
-        subip.Params.PoolSearchMode = 1
+        subip.Params.PoolSolutions = 20
+        subip.Params.PoolSearchMode = 2
         if cutting:
             subip.Params.TimeLimit = self._subip_cutting_timelimit
         # need to set this strictly above -1 to work
@@ -2838,7 +2838,7 @@ class Gobnilp(Model):
          data_source (str/array_like) : If not None, name of the file containing the discrete data or an array_like object.
                                If None, then it is assumed that  data has previously been read in.
          start (str): Starting stage for learning. Possible stages are: 'no data', 'data', 'local scores computed',
-        'local scores stored',
+          'local scores stored',
           'MIP model', 'MIP solution', 'BN(s)' and 'CPDAG(s)'.
          end (str): End stage for learning. Possible values are the same as for `start`.
          data_type (str): Indicates the type of data. Must be either 'discrete' or 'continuous'
@@ -2870,9 +2870,9 @@ class Gobnilp(Model):
             If this value is not empty, a local scoring function must be provided.
          local_scores_source (str/file/dict/None): Ignored if None. If not None then local scores are not computed from data. 
             but come from `local_scores_source`. If a string then the name of a file containing local scores. 
-                If a file then the file containing local scores. 
-             If a dictionary, then ``local_scores[child][parentset]`` is the score for ``child`` having parents ``parentset``
-             where ``parentset`` is a frozenset.
+            If a file then the file containing local scores. 
+            If a dictionary, then ``local_scores[child][parentset]`` is the score for ``child`` having parents ``parentset``
+            where ``parentset`` is a frozenset.
          nsols (int): Number of BNs to learn
          kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
          mec (bool): Whether only one BN per Markov equivalence class should be feasible.
