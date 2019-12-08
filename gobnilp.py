@@ -873,12 +873,13 @@ class Gobnilp(Model):
         #self.Params.Presolve = 2
         #self.Params.PreDual = 2
         self.Params.ZeroHalfCuts = 2
+
         
         self.Params.MIPGap = 0
         self.Params.MIPGapAbs = 0
 
         # gobnilp parameters
-        self._subip_cutoff = -0.99
+        self._subip_cutoff = -0.999
         self._subip_cutting_timelimit = 5
         self._user_cuts_rounds_count = 0
         self._user_cuts_rounds_limit = None
@@ -2324,7 +2325,7 @@ class Gobnilp(Model):
         max_cluster_size = self._max_cluster_size
         if (where == GRB.Callback.MIPNODE and
             self.cbGet(GRB.Callback.MIPNODE_STATUS) == GRB.OPTIMAL and
-            self.cbGet(GRB.Callback.MIPNODE_NODCNT) == 0): # only cut in the root
+            self.cbGet(GRB.Callback.MIPNODE_NODCNT) % 20 == 0): 
 
             # optionally don't look for cuts if this has already been done
             # 'too' often
@@ -2356,6 +2357,7 @@ class Gobnilp(Model):
 
             is_a_dag = True
             if self._enforcing_cluster_constraints:
+                #print(self.cbGet(GRB.Callback.MIPSOL_NODCNT))
                 is_a_dag = not self._subip(cutting = False,max_cluster_size=max_cluster_size)
                 self._user_enforcement_rounds_count += 1
             if is_a_dag:
@@ -2832,7 +2834,7 @@ class Gobnilp(Model):
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
               nsols=1, kbest=False, mec=False, consfile=None, pruning=True, edge_penalty=0.0, plot=True,
-              output_file=None):
+              abbrev=True,output_file=None):
         '''
         Args:
          data_source (str/array_like) : If not None, name of the file containing the discrete data or an array_like object.
@@ -2881,6 +2883,7 @@ class Gobnilp(Model):
          pruning(bool): Whether not to include parent sets which cannot be optimal when acyclicity is the only constraint.
          edge_penalty(float): The local score for a parent set with `p` parents will be reduced by `p*edge_penalty`.
          plot (bool): Whether to plot learned BNs/CPDAGs once they have been learned.
+         abbrev (bool): When plotting whether to abbreviate variable names to the first 3 characters.
          output_file (str/None): If not None, the name of a file to write the learned BN (the first one if several learned).
             If the filename ends in '.dot' then a dot file is created. If the filename ends in '.pdf' then a dot file and a PDF is created. 
          '''
@@ -3011,7 +3014,7 @@ class Gobnilp(Model):
                     cpdag = self.learned_cpdags[i]
                     print(cpdag)
                     if plot:
-                        cpdag.plot()
+                        cpdag.plot(abbrev=abbrev)
             self._stage = 'output shown'
 
         if self.between(self._stage,'output written',end):

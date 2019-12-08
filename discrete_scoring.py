@@ -456,7 +456,7 @@ class DiscreteData:
         self._data = data
         self._data_length = data.shape[0]
         if arities is None:
-            self._arities = np.array([x+1 for x in data.max(axis=1)],dtype=np.uint32)
+            self._arities = np.array([x+1 for x in data.max(axis=0)],dtype=np.uint32)
         else:
             self._arities = np.array(arities,dtype=np.uint32)
         if varnames is None:
