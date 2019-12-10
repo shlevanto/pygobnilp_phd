@@ -2839,8 +2839,7 @@ class Gobnilp(Model):
         Args:
          data_source (str/array_like) : If not None, name of the file containing the discrete data or an array_like object.
                                If None, then it is assumed that  data has previously been read in.
-         start (str): Starting stage for learning. Possible stages are: 'no data', 'data', 'local scores computed',
-          'local scores stored',
+         start (str): Starting stage for learning. Possible stages are: 'no data', 'data', 'local scores',
           'MIP model', 'MIP solution', 'BN(s)' and 'CPDAG(s)'.
          end (str): End stage for learning. Possible values are the same as for `start`.
          data_type (str): Indicates the type of data. Must be either 'discrete' or 'continuous'
