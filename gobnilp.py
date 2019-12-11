@@ -991,6 +991,8 @@ class Gobnilp(Model):
             raise Gobnilp.UserConstraintError("Can't have {0}-{1}!".format(u,v))
         if uv in self._obligatory_adjacencies:
             raise Gobnilp.UserConstraintError("Can't have {0}-{1} forbidden and obligatory!".format(u,v))
+        self.add_forbidden_arrow(u,v)
+        self.add_forbidden_arrow(v,u)
         self._forbidden_adjacencies.add(uv)
         
     def add_obligatory_adjacency(self,uv):
@@ -1010,10 +1012,10 @@ class Gobnilp(Model):
         if (v,u) in self._forbidden_arrows:
             self.add_obligatory_arrow(u,v)
 
-    def add_independence(self,a,b):
-        self.add_conditional_independence(a,b,frozenset())
+    def add_obligatory_independence(self,a,b):
+        self.add_obligatory_conditional_independence(a,b,frozenset())
         
-    def add_conditional_independence(self,a,b,s):
+    def add_obligatory_conditional_independence(self,a,b,s):
         aset = frozenset(a)
         bset = frozenset(b)
         sset = frozenset(s)
