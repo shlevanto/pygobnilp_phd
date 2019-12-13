@@ -1384,9 +1384,6 @@ class Gobnilp(Model):
     def input_local_scores(self, local_scores):
         '''Read local scores from a dictionary.
 
-        If `self` already has local scores computed then `local_scores` are added, overwriting
-        values for any existing values.
-
         Once this method has been run, methods for adding MIP variables, such as
         :py:meth:`add_variables_family <gobnilp.Gobnilp.add_variables_family>` and 
         :py:meth:`add_basic_variables <gobnilp.Gobnilp.add_basic_variables>`, can be used.
@@ -1396,12 +1393,9 @@ class Gobnilp(Model):
              ``local_scores[child][parentset]`` is the score for ``child`` having parents ``parentset``
              where ``parentset`` is a frozenset.
         '''
-        try:
-            self._family_scores.update(local_scores)
-        except AttributeError:
-            self._family_scores = local_scores
-        # ensure BN variables equal the child variables in the local scores
-        self._bn_variables = sorted(self._family_scores)
+        self._family_scores = local_scores
+        if not hasattr(self,'_bn_variables'):
+            self._bn_variables = sorted(self._family_scores)
 
     def add_constraints_one_dag_per_MEC(self,dynamic=True,careful=False):
         '''Adds a constraint that only one DAG per Markov equivalence class is feasible.
