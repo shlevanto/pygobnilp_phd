@@ -1759,7 +1759,7 @@ class Gobnilp(Model):
         total_order = {}
         n = 0
         for (v1, v2) in permutations(self.bn_variables,2):
-            v = self.addVar(vtype=GRB.BINARY)
+            v = self.addVar(vtype=GRB.BINARY,name="{0}>{1}".format(v1,v2))
             v.BranchPriority = branch_priority
             total_order[v1,v2] = v
             n += 1
@@ -2147,16 +2147,12 @@ class Gobnilp(Model):
         for (v1, v2) in combinations(bn_variables,2):
             self.addConstr(total_order[v1,v2] + total_order[v2,v1] == 1)
             n += 1
-        if lazy:
-            self._total_order_lazy = True
-        else:
-            self._total_order_lazy = False
-            for v1, v2 in permutations(bn_variables,2):
-                for v3 in bn_variables:
-                    if v3 != v1 and v3 != v2:
-                        constr = self.addConstr(total_order[v1,v2] + total_order[v2,v3] + total_order[v3,v1] <= 2)
-                        constr.Lazy = lazy
-                        n += 1
+        for v1, v2 in permutations(bn_variables,2):
+            for v3 in bn_variables:
+                if v3 != v1 and v3 != v2:
+                    constr = self.addConstr(total_order[v1,v2] + total_order[v2,v3] + total_order[v3,v1] <= 2)
+                    constr.Lazy = lazy
+                    n += 1
         if self._verbose:
             print('%d total order constraints declared' % n, file=sys.stderr)
 
