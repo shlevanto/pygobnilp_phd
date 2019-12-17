@@ -37,7 +37,8 @@ import argparse
 from scipy.special import digamma
 
 import pandas as pd
-        
+
+
 
 
 # START functions for upper bounds
@@ -510,113 +511,19 @@ class DiscreteData:
         # using. (Note: it appears that importing a class multiple times does not 
         # lead to it being compiled multiple times.)
         if use_adtree:
+            self._use_adtree = True
+            # only import if we need to since jit compilation is slow 
             from .ADTree import ADTree
-            self.bdeu_process_contab_function = _bdeu_process_array_contab
             #self.bic_process_contab_function = _bic_process_array_contab
             if max_palim_size == None:
                 max_palim_size = self._arities.size - 1
             self._contab_generator = ADTree(data, self._arities, rmin, max_palim_size+1)
         else:
+            self._use_adtree = False
             from .contab_simple_tree import ContabGenerator
-            self.bdeu_process_contab_function = _bdeu_process_tree_contab
             #self.bic_process_contab_function = _bic_process_tree_contab
             self._contab_generator = ContabGenerator(data, self._arities)
 
-        self._atoms = get_atoms(data,self._arities)
-
-        #print(self._atoms)
-        #self._bdeu_global_ubs = self.get_bdeu_global_ubs()
-        #self._almost_atoms = self.get_almost_atoms()
-        #self._bdeu_almost_global_ubs = self.get_bdeu_almost_global_ubs()
-        #print(self._bdeu_global_ubs)
-        #print(self._bdeu_almost_global_ubs)
-        #for v in self._almost_atoms:
-        #    for w in v:
-        #        print(w)
-        #    print()
-        
-    def _atoms_for_parents(self,child,parents):
-        """
-        Return a dictionary whose keys are instantiations of the parents
-        with positive count in the data and whose values are lists of lists
-        of lists of child counts. 
-
-        If dkt is the returned dictionary, then e.g.
-        dkt[0,1,0] = [ [1,2], [0,4] ]
-        means that there are 3 parents and there are 2 full parent instantiations for 
-        the instantiation (0,1,0) one with child counts [1,2] and one with child counts [0,4]
-        
-        An exception will be raised if the _atoms attribute has not yet been computed.
-        """
-                
-        
-        # now atoms for the same parent inst are grouped together
-        
-        # dkt = {}
-        # for fullinst, childcounts in self._atoms[child_idx].items():
-        #     inst = tuple([fullinst[i] for i in pa_idxs])
-        #     try:
-        #         dkt[inst].append(childcounts)
-        #     except KeyError:
-        #         dkt[inst] = [childcounts]
-        # return dkt
-
-
-    def get_almost_atoms(self):
-        #alldkts[i][j] is the counts for child i when j is absent.
-        p = len(self._atoms)
-        alldkts = []
-        for i, dkt in enumerate(self._atoms):
-            arity = self._arities[i]
-            newdkts = []
-            for j in range(p):
-                newdkt = {}
-                # if jth not in parent set ...
-                if j != i:
-                    for inst, counts in dkt.items():
-                        lessinst = inst[:j]+(0,)+inst[j+1:] # add dummy value again
-                        if lessinst in newdkt:
-                            # add counts
-                            for k in range(arity):
-                                newdkt[lessinst][k] += counts[k]
-                        else:
-                            newdkt[lessinst] = counts[:]
-                newdkts.append(newdkt)
-            alldkts.append(newdkts)
-        return alldkts
-
-    def get_bdeu_almost_global_ubs(self):
-        allubs = []
-        p = len(self._almost_atoms)
-        for i, dkts in enumerate(self._almost_atoms):
-            ubs = []
-            for j in range(p):
-                ub = 0.0
-                for counts in dkts[j].values():
-                    tot = sum(counts)
-                    mle = 0.0
-                    for c in counts:
-                        if c > 0:
-                            mle = c * log(c/tot)
-                    ub += mle
-                ubs.append(ub)
-            allubs.append(ubs)
-        return allubs
-    
-    def get_bdeu_global_ubs(self):
-        ubs = []
-        for dkt in self._atoms:
-            ub = 0.0
-            for counts in dkt.values():
-                tot = sum(counts)
-                mle = 0.0
-                for c in counts:
-                    if c > 0:
-                        mle = c * log(c/tot)
-                ub += mle
-            ubs.append(ub)
-        return ubs
-                        
     def data(self):
         '''
         The data with all values converted to unsigned integers.
@@ -700,10 +607,6 @@ class BIC(DiscreteData):
         '''
         self.__dict__.update(data.__dict__)
 
-        
-
-        
-    
 class BDeu(DiscreteData):
     """
     Discrete data with attributes and methods for BDeu scoring
@@ -721,6 +624,14 @@ class BDeu(DiscreteData):
         self.alpha = alpha
         self._cache = {}
 
+        # for upper bounds
+        self._atoms = get_atoms(self._data,self._arities)
+
+        if self._use_adtree:
+            self.bdeu_process_contab_function = _bdeu_process_array_contab
+        else:
+            self.bdeu_process_contab_function = _bdeu_process_tree_contab    
+        
     @property
     def alpha(self):
         '''float: The *equivalent sample size* used for BDeu scoring'''
@@ -784,23 +695,14 @@ class BDeu(DiscreteData):
         # remove cols corresponding to non-parents and order
         p = len(self._arities)
         end_idxs = list(range(p,p+r+2))
-        #print(end_idxs)
         atoms_ints_redux = atoms_ints[:,pa_idxs+end_idxs]
         if len(pa_idxs) > 0:
             idxs = np.lexsort([atoms_ints_redux[:,col] for col in range(len(pa_idxs))])
         else:
             idxs = list(range(len(atoms_floats)))
 
-        #print(atoms_ints)
-
-        #pa_idxs.append(1) # add dummy element
         return upper_bound_james_fun(atoms_ints_redux,atoms_floats,len(pa_idxs),alpha,r,idxs)
         
-        # this_ub = 0.0
-        # for dists in self._atoms_for_parents(child,parents).values():
-        #     this_ub += ub(dists,alpha,r)
-        # return this_ub
-
     def bdeu_score_component(self,variables,alpha=None):
         '''Compute the BDeu score component for a set of variables
         (from the current dataset).
@@ -844,36 +746,10 @@ class BDeu(DiscreteData):
             family_score, non_zero_count = self.bdeu_score_component((child,)+parents)
             self._cache[family_set] = family_score, non_zero_count
 
-        # get best lower bound given that early parents will not be added
-        # last_idx = -1
-        # for pa in parents:
-        #     last_idx = max(last_idx,generator._varidx[pa])
-        # almost_global_ubs = generator._bdeu_almost_global_ubs[generator._varidx[child]]
-        # almost_global_ub = 0.0
-        # for i, v in enumerate(generator.variables()):
-        #     if i == last_idx:
-        #         break
-        #     if not(v == child or v in parents_set):
-        #         almost_global_ub = min(almost_global_ub,almost_global_ubs[i])
-
-
-        # global_ub = generator._bdeu_global_ubs[generator._varidx[child]]
         simple_ub = -log(self.arity(child)) * non_zero_count
 
         james_ub = self.upper_bound_james(child,parents)
         
-        #print(simple_ub,global_ub,almost_global_ub,james_ub)
-        
-        
-        # all scores for this child no better than the global or almost global ub
-        #assert parent_score - family_score <= global_ub
-        #assert parent_score - family_score <= almost_global_ub
-
-        #return parent_score - family_score, None
-        #return parent_score - family_score, simple_ub
-        #return parent_score - family_score, min(simple_ub,global_ub)
-        #return parent_score - family_score, min(simple_ub,global_ub,almost_global_ub)
-        #print(parent_score - family_score,simple_ub,james_ub)
         return parent_score - family_score, min(simple_ub,james_ub)
 
         
