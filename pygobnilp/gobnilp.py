@@ -2291,7 +2291,7 @@ class Gobnilp(Model):
         #self.add_constraints_gendiff()
         #self.add_constraints_absgendiff()
         #self.add_constraints_4b()
-        self.add_constraints_bests()
+        #self.add_constraints_bests()
         
     def _mycallback(self,where):
         '''callback for adding cuts and lazy constraints
@@ -2985,7 +2985,7 @@ class Gobnilp(Model):
             if not user_conss_read:
                 self.input_user_conss(consfile)
                 user_conss_read = True
-            self._best_subip()
+            #self._best_subip()
             self._stage = 'local scores'
 
         if self.between(self._stage,'MIP model',end):
