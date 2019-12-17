@@ -13,44 +13,44 @@ Welcome to pygobnilp's documentation!
 The Gobnilp class
 ------------------
 
-.. autoclass:: gobnilp.Gobnilp
+.. autoclass:: pygobnilp.gobnilp.Gobnilp
    :members:
       
 The BN class
 ------------
 
-.. autoclass:: gobnilp.BN
+.. autoclass:: pygobnilp.gobnilp.BN
    :members:
       
 The CPDAG class
 ---------------
 
-.. autoclass:: gobnilp.CPDAG
+.. autoclass:: pygobnilp.gobnilp.CPDAG
    :members:	       
 
 The MN class
 ------------
 
-.. autoclass:: gobnilp.MN
+.. autoclass:: pygobnilp.gobnilp.MN
    :members:
 
 		
 The BDeu class
 -----------------------------
 
-.. autoclass:: discrete_scoring.BDeu
+.. autoclass:: pygobnilp.discrete_scoring.BDeu
    :members:
       
 The BGe class
 -------------
 
-.. autoclass:: continuous_scoring.BGe
+.. autoclass:: pygobnilp.continuous_scoring.BGe
    :members:
       
 Functions in the gobnilp module
 -------------------------------
 
-.. automodule:: gobnilp
+.. automodule:: pygobnilp.gobnilp
    :members: from_bnlearn_modelstring, read_local_scores
    
 	       
