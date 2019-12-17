@@ -44,7 +44,7 @@ ADTree_spec = [
 @jitclass(ADTree_spec)
 class ADTree(object):
     """
-        A Numba accellerated ADtree implementation that can be used to produce
+        A Numba accelerated ADtree implementation that can be used to produce
         contingency tables (quickly)
         
         Note: we store the number of AD/vary nodes and leaf pointers

@@ -185,9 +185,10 @@ def ub(dists,alpha,r):
 
 
 @jit(nopython=True)
-def _process_tree_contab_inner(arities, contab_tree, tree_index, att_index, variables, alpha_div_arities):
+def _bdeu_process_tree_contab_inner(arities, contab_tree, tree_index, att_index, variables, alpha_div_arities):
     """
-        Recursively processes a contingency table tree that is stored in an array.
+        Recursively processes a contingency table tree (that is stored in an array),
+        to compute a BDeu score component
         
         Parameters
         ----------
@@ -211,13 +212,14 @@ def _process_tree_contab_inner(arities, contab_tree, tree_index, att_index, vari
                 score -= lgamma(alpha_div_arities+contab_tree[next_tree_index])
                 non_zero_count += 1
             else:
-                add_to_score, add_to_non_zero_count = _process_tree_contab_inner(arities, contab_tree, contab_tree[next_tree_index], att_index+1, variables, alpha_div_arities)
+                add_to_score, add_to_non_zero_count = _bdeu_process_tree_contab_inner(
+                    arities, contab_tree, contab_tree[next_tree_index], att_index+1, variables, alpha_div_arities)
                 score += add_to_score
                 non_zero_count += add_to_non_zero_count
     return score, non_zero_count
     
 @jit(nopython=True)
-def _process_tree_contab(arities, contab, variables, alpha_div_arities):
+def _bdeu_process_tree_contab(arities, contab, variables, alpha_div_arities):
     """
         Recursively processes a contingency table tree that is stored in an array.
         Calculates the BDeu "score component" for that table.
@@ -229,13 +231,24 @@ def _process_tree_contab(arities, contab, variables, alpha_div_arities):
         - `variables`: The variables for which the contingency table was constructed
         - `alpha_div_arities`: Alpha divided by the product of the arities of the variables
     """
-    score, non_zero_count = _process_tree_contab_inner(arities,contab, 0, 0, variables, alpha_div_arities)
+    score, non_zero_count = _bdeu_process_tree_contab_inner(arities, contab, 0, 0, variables, alpha_div_arities)
     score += non_zero_count*lgamma(alpha_div_arities)  
     return score, non_zero_count
 
-# This must have the same signature as _process_tree_contab
+# This must have the same signature as _bdeu_process_tree_contab
 @jit(nopython=True)    
-def _process_array_contab(arities, contab, variables, alpha_div_arities):
+def _bdeu_process_array_contab(arities, contab, variables, alpha_div_arities):
+    """
+        Calculates the BDeu "score component" for a contingency table 
+        (stored as a flat array)
+
+        Parameters:
+        
+        - `arities`: contains the arities of every variable
+        - `contab`: the tree contingency table
+        - `variables`: The variables for which the contingency table was constructed
+        - `alpha_div_arities`: Alpha divided by the product of the arities of the variables
+    """
     non_zero_count = 0
     score = 0
     for count in contab:
@@ -246,17 +259,40 @@ def _process_array_contab(arities, contab, variables, alpha_div_arities):
     score += non_zero_count*lgamma(alpha_div_arities)  
     return score, non_zero_count
 
+# @jit(nopython=True)
+# def _ll_score(contab_generator, arities, variables, child, process_contab_function):
+#     """
+#         Parameters:
+
+#         - `contab_generator`: Function used to generate the contingency tables for `variables`
+#         - `arities`: A NumPy array containing the arity of every variable
+#         - `variables`: A Numpy array of ints which are column indices for the family = (child + parents)
+#         - `child`: The column index for the child 
+#         - `process_contab_function`: Function called to do main computation
+
+#         - Returns the fitted log-likelihood (LL) score 
+#     """
+#     contab = contab_generator.make_contab(variables)
+#     score, non_zero_count = process_contab_function(arities, contab, variables, alpha_div_arities)             
+    
+#     return score, non_zero_count
+
+
 # This was moved out of the class as it can easily be accelerated with Numba
 @jit(nopython=True)
-def _bdeu_score_component(contab_generator, arities, variables, alpha, process_contab_function):
+def _bdeu_score_component(contab_generator, arities, variables, alpha, bdeu_process_contab_function):
     """
+        
+        Note: contab_generator and bdeu_process_contab_function must 'match'
+              either contab_generator is an ADTree object, and bdeu_process_contab_function is bdeu_process_array_contab
+              or contab_generator is a ContabGenerator object, and bdeu_process_contab_function is _bdeu_process_tree_contab
         Parameters:
 
         - `contab_generator`: Function used to generate the contingency tables for `variables`
         - `arities`: A NumPy array containing the arity of every variable
         - `variables`: A Numpy array of ints which are column indices for the variables for which the score component is being constructed
         - `alpha`: Effective sample size
-        - `process_contab_function`: Function called to do main computation
+        - `bdeu_process_contab_function`: Function called to do main computation
 
         - Returns (score, non_zero_count) where score is the BDeu component score and non_zero_count
           is the number of cells with positive count in the contingency table for `variables`
@@ -264,7 +300,7 @@ def _bdeu_score_component(contab_generator, arities, variables, alpha, process_c
     alpha_div_arities = alpha / arities[variables].prod()
     
     contab = contab_generator.make_contab(variables)
-    score, non_zero_count = process_contab_function(arities, contab, variables, alpha_div_arities)             
+    score, non_zero_count = bdeu_process_contab_function(arities, contab, variables, alpha_div_arities)             
     
     return score, non_zero_count
 
@@ -474,14 +510,16 @@ class DiscreteData:
         # using. (Note: it appears that importing a class multiple times does not 
         # lead to it being compiled multiple times.)
         if use_adtree:
-            from ADTree import ADTree
-            self.process_contab_function = _process_array_contab
+            from .ADTree import ADTree
+            self.bdeu_process_contab_function = _bdeu_process_array_contab
+            #self.bic_process_contab_function = _bic_process_array_contab
             if max_palim_size == None:
                 max_palim_size = self._arities.size - 1
             self._contab_generator = ADTree(data, self._arities, rmin, max_palim_size+1)
         else:
-            from contab_simple_tree import ContabGenerator
-            self.process_contab_function = _process_tree_contab
+            from .contab_simple_tree import ContabGenerator
+            self.bdeu_process_contab_function = _bdeu_process_tree_contab
+            #self.bic_process_contab_function = _bic_process_tree_contab
             self._contab_generator = ContabGenerator(data, self._arities)
 
         self._atoms = get_atoms(data,self._arities)
@@ -650,6 +688,22 @@ class DiscreteData:
 #        contab = self._contab_generator.make_contab(
     
 
+class BIC(DiscreteData):
+    """
+    Discrete data with attributes and methods for BIC scoring
+    """
+    def __init__(self,data):
+        '''Initialises a `IC` object.
+
+        Args:
+         data (DiscreteData): data
+        '''
+        self.__dict__.update(data.__dict__)
+
+        
+
+        
+    
 class BDeu(DiscreteData):
     """
     Discrete data with attributes and methods for BDeu scoring
@@ -772,7 +826,7 @@ class BDeu(DiscreteData):
         else:
             variables = np.array([self._varidx[x] for x in list(variables)], dtype=np.uint32)
             variables.sort() #AD tree requires variables to be in order
-            return _bdeu_score_component(self._contab_generator, self._arities, variables, alpha, self.process_contab_function)
+            return _bdeu_score_component(self._contab_generator, self._arities, variables, alpha, self.bdeu_process_contab_function)
 
     def bdeu_score(self, child, parents):
 
@@ -864,7 +918,7 @@ class BDeu(DiscreteData):
             for family in combinations(self._variables,pasize): 
                 
                 variables = np.array([self._varidx[x] for x in list(family)], dtype=np.uint32)
-                score_component = _bdeu_score_component(self._contab_generator, self._arities, variables, alpha, self.process_contab_function)
+                score_component = _bdeu_score_component(self._contab_generator, self._arities, variables, alpha, self.bdeu_process_contab_function)
                 family_set = frozenset(family)
                 for child in self._variables:
                     if child in family_set:
@@ -879,7 +933,7 @@ class BDeu(DiscreteData):
         for vars in combinations(self._variables,palim+1):
             variables = np.array([self._varidx[x] for x in list(vars)], dtype=np.uint32)
             vars_set = frozenset(vars)
-            score_component = _bdeu_score_component(self._contab_generator, self._arities, variables, alpha, self.process_contab_function)
+            score_component = _bdeu_score_component(self._contab_generator, self._arities, variables, alpha, self.bdeu_process_contab_function)
             for child in vars:
                 parent_set = vars_set.difference([child])
                 score_dict[child][parent_set] -= score_component
