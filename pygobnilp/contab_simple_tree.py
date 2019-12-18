@@ -20,7 +20,7 @@ class ContabGenerator(object):
             of numbers)
             Note: attributes must be sorted in increasing order!
         """
-        
+        #print('my contab',_make_contab2(self._data,attributes,np.array([self._arities[x] for x in attributes],np.uint8)))
         return _make_contab(self, attributes)
         
     def make_contab_full(self, attributes):
@@ -92,6 +92,13 @@ def _double_array_size(array):
         Returns an array that contains the same data as the parameter array
         (these elements are placed at the begining of the new array)
         but is twice as large
+
+    Args:
+     array (numpy.array) : an array
+
+    Returns:
+     numpy.array : array twice as long as input array with first half equal to original array
+
     """
     #Array.resize not available with Numba :(
     size = array.size
@@ -100,10 +107,44 @@ def _double_array_size(array):
     return new         
 
 @jit(nopython=True)
+def _make_contab2(data, cols, arities):
+    '''
+    if arities = (2,3,3) then strides = 9,3,1
+    if row is (2,1,2) then index is 2*9 + 1*3 + 2*1
+    '''
+    p = len(cols)
+    strides = np.empty(p,dtype=np.uint32)
+    idx = p-1
+    stride = 1
+    while idx > -1:
+        strides[idx] = stride
+        stride *= arities[idx]
+        idx -= 1
+    contab = np.zeros(stride,dtype=np.uint32)
+    for rowidx in range(data.shape[0]):
+        row = data[rowidx,:]
+        idx = 0
+        for i, s in enumerate(strides):
+            #idx += data[rowidx,cols[i]]*s
+            idx += row[cols[i]]*s
+        contab[idx] += 1
+        # can't do following since numba only allows 'dot' on floats
+        # could try using floats
+        #contab[row[cols].dot(strides)] += 1
+    return contab
+
+@jit(nopython=True)
 def _make_contab(contab_generator, attributes):
     """
         Had to be separate from the class so that the parallel compilation option could be used.
         However it won't compile proprely when the parallel option is used...
+
+    Args:
+     contab_generator (ContabGenerator) : the data
+     attributes (array of ints) : column indices (must be in increasing order)
+
+    Returns:
+     numpy.array : counts for the contingency table    
     """
     
     real_size = contab_generator._arities[attributes[0]]
@@ -112,9 +153,13 @@ def _make_contab(contab_generator, attributes):
     
     
     last_att = attributes[-1]
+    # for each row in the data ...
     for row in range(contab_generator._data.shape[0]):
+        # compute index for this row = datapoint
         index = 0
+        # for each attribute
         for att in range(attributes.size - 1):
+            # increment index by value for current attribute
             index += contab_generator._data[row,attributes[att]]
             if contab_for_counts[index] == 0:
                
@@ -124,7 +169,12 @@ def _make_contab(contab_generator, attributes):
                     contab_for_counts = _double_array_size(contab_for_counts)
                 contab_for_counts[real_size:new_real_size] = 0
                 real_size = new_real_size
+            # ready for next attribute
             index = contab_for_counts[index]
+        # now increment count for datapoint given by current row
+        # 'index' is now the index for this row for all attributes but last
         contab_for_counts[index + contab_generator._data[row,last_att]]+=1     
-        
+
+    #print(attributes)
+    #print('his contab', contab_for_counts)
     return contab_for_counts
