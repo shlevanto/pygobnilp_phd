@@ -38,7 +38,60 @@ from scipy.special import digamma
 
 import pandas as pd
 
+# START functions for contabs
 
+@jit(nopython=True)
+def make_contab(data, cols, arities):
+    '''
+    Compute a marginal contingency table from data
+
+    Args:
+     data (numpy array): the data as a 2-d array, each row is a datapoint
+     cols (numpy array): the columns (=variables) for the marginal contingency table.
+      columns must be ordered low to high
+     arities (numpy array): the arities of the variables (=columns) for the contingency table
+      order must match that of `cols`.
+
+    Returns:
+     numpy array: an array of counts of length equal to the product of the `arities`.
+     Counts are in lexicographic order of the joint instantiations of the variables
+    '''
+    p = len(cols)
+    #if arities = (2,3,3) then strides = 9,3,1
+    #if row is (2,1,2) then index is 2*9 + 1*3 + 2*1
+    strides = np.empty(p,dtype=np.uint32)
+    idx = p-1
+    stride = 1
+    while idx > -1:
+        strides[idx] = stride
+        stride *= arities[idx]
+        idx -= 1
+    contab = np.zeros(stride,dtype=np.uint32)
+    for rowidx in range(data.shape[0]):
+        row = data[rowidx,:]
+        idx = 0
+        for i, s in enumerate(strides):
+            #idx += data[rowidx,cols[i]]*s
+            idx += row[cols[i]]*s
+        contab[idx] += 1
+        # can't do following since numba only allows 'dot' on floats
+        # could try using floats
+        #contab[row[cols].dot(strides)] += 1
+    return contab
+
+
+@jit(nopython=True)
+def compute_bdeu_component(data, cols, arities, alpha):
+    contab = make_contab(data, cols, arities)
+    alpha_div_arities = alpha / len(contab)
+    non_zero_count = 0
+    score = 0.0
+    for count in contab:
+        if count != 0:
+            non_zero_count += 1
+            score -= lgamma(alpha_div_arities+count) 
+    score += non_zero_count*lgamma(alpha_div_arities)  
+    return score, non_zero_count
 
 
 # START functions for upper bounds
@@ -182,83 +235,6 @@ def ub(dists,alpha,r):
                 best_diff = diff
     return best_diff + naives
 
-# START functions for upper bounds
-
-
-@jit(nopython=True)
-def _bdeu_process_tree_contab_inner(arities, contab_tree, tree_index, att_index, variables, alpha_div_arities):
-    """
-        Recursively processes a contingency table tree (that is stored in an array),
-        to compute a BDeu score component
-        
-        Parameters
-        ----------
-    
-        
-        - `arities`: contains the arities of every variable
-        - `contab_tree`: the tree contingency table
-        - `tree_index`: The current array index that is being examined
-        - `att_index`: The index of the current attribute in variables
-        - `variables`: The variables for which the contingency table was constructed
-        - `alpha_div_arities`: Alpha divided by the product of the arities of the variables
-    """
-    score = 0.0
-    non_zero_count = 0
-    for val in range(arities[variables[att_index]]):
-        next_tree_index = tree_index + val
-
-        if contab_tree[next_tree_index] != 0:
-            if att_index == variables.size - 1:
-                # count value
-                score -= lgamma(alpha_div_arities+contab_tree[next_tree_index])
-                non_zero_count += 1
-            else:
-                add_to_score, add_to_non_zero_count = _bdeu_process_tree_contab_inner(
-                    arities, contab_tree, contab_tree[next_tree_index], att_index+1, variables, alpha_div_arities)
-                score += add_to_score
-                non_zero_count += add_to_non_zero_count
-    return score, non_zero_count
-    
-@jit(nopython=True)
-def _bdeu_process_tree_contab(arities, contab, variables, alpha_div_arities):
-    """
-        Recursively processes a contingency table tree that is stored in an array.
-        Calculates the BDeu "score component" for that table.
-        
-        Parameters:
-        
-        - `arities`: contains the arities of every variable
-        - `contab`: the tree contingency table
-        - `variables`: The variables for which the contingency table was constructed
-        - `alpha_div_arities`: Alpha divided by the product of the arities of the variables
-    """
-    score, non_zero_count = _bdeu_process_tree_contab_inner(arities, contab, 0, 0, variables, alpha_div_arities)
-    score += non_zero_count*lgamma(alpha_div_arities)  
-    return score, non_zero_count
-
-# This must have the same signature as _bdeu_process_tree_contab
-@jit(nopython=True)    
-def _bdeu_process_array_contab(arities, contab, variables, alpha_div_arities):
-    """
-        Calculates the BDeu "score component" for a contingency table 
-        (stored as a flat array)
-
-        Parameters:
-        
-        - `arities`: contains the arities of every variable
-        - `contab`: the tree contingency table
-        - `variables`: The variables for which the contingency table was constructed
-        - `alpha_div_arities`: Alpha divided by the product of the arities of the variables
-    """
-    non_zero_count = 0
-    score = 0
-    for count in contab:
-        if count != 0:
-            non_zero_count+=1
-            score -= lgamma(alpha_div_arities+count) 
-    
-    score += non_zero_count*lgamma(alpha_div_arities)  
-    return score, non_zero_count
 
 # @jit(nopython=True)
 # def _ll_score(contab_generator, arities, variables, child, process_contab_function):
@@ -279,31 +255,6 @@ def _bdeu_process_array_contab(arities, contab, variables, alpha_div_arities):
 #     return score, non_zero_count
 
 
-# This was moved out of the class as it can easily be accelerated with Numba
-@jit(nopython=True)
-def _bdeu_score_component(contab_generator, arities, variables, alpha, bdeu_process_contab_function):
-    """
-        
-        Note: contab_generator and bdeu_process_contab_function must 'match'
-              either contab_generator is an ADTree object, and bdeu_process_contab_function is bdeu_process_array_contab
-              or contab_generator is a ContabGenerator object, and bdeu_process_contab_function is _bdeu_process_tree_contab
-        Parameters:
-
-        - `contab_generator`: Function used to generate the contingency tables for `variables`
-        - `arities`: A NumPy array containing the arity of every variable
-        - `variables`: A Numpy array of ints which are column indices for the variables for which the score component is being constructed
-        - `alpha`: Effective sample size
-        - `bdeu_process_contab_function`: Function called to do main computation
-
-        - Returns (score, non_zero_count) where score is the BDeu component score and non_zero_count
-          is the number of cells with positive count in the contingency table for `variables`
-    """
-    alpha_div_arities = alpha / arities[variables].prod()
-    
-    contab = contab_generator.make_contab(variables)
-    score, non_zero_count = bdeu_process_contab_function(arities, contab, variables, alpha_div_arities)             
-    
-    return score, non_zero_count
 
 #@jit(nopython=True)
 def get_atoms(data,arities):
@@ -400,8 +351,7 @@ class DiscreteData:
     Complete discrete data
     """
     
-    def __init__(self, data_source, varnames = None, arities = None,
-                 use_adtree = False, rmin=32, max_palim_size=None):
+    def __init__(self, data_source, varnames = None, arities = None):
         '''Initialises a `DiscreteData` object.
 
         If  `data_source` is a filename then it is assumed that:
@@ -430,21 +380,6 @@ class DiscreteData:
            will supply the arities). Otherwise if not supplied (`=None`)
            the arity for each variable will be set to the number of distinct values
            observed for that variable in the data.
-
-          use_adtree (bool) : 
-           If True an ADTree will be used to compute the necessary
-           counts. Otherwise a simpler approach is taken (it is
-           recommended that you only use an ADTree if you have a large
-           number of records in your dataset).
-            
-          rmin (int) :
-           The rmin value for the ADTree.
-           (Only used when using an ADTree.)
-        
-          max_palim_size (int/None) : 
-           The maximum size of any parent set. 
-           Setting this can lead to faster computation.
-           (Only used when using an ADTree.)
         '''
 
         if type(data_source) == str:
@@ -504,25 +439,6 @@ class DiscreteData:
         self._varidx = {}
         for i, v in enumerate(self._variables):
             self._varidx[v] = i
-
-        # When Numba compiled classes are imported
-        # they are compiled regardless of whether or not they are used.
-        # Therefore we only want to import the class that we will actually be
-        # using. (Note: it appears that importing a class multiple times does not 
-        # lead to it being compiled multiple times.)
-        if use_adtree:
-            self._use_adtree = True
-            # only import if we need to since jit compilation is slow 
-            from .ADTree import ADTree
-            #self.bic_process_contab_function = _bic_process_array_contab
-            if max_palim_size == None:
-                max_palim_size = self._arities.size - 1
-            self._contab_generator = ADTree(data, self._arities, rmin, max_palim_size+1)
-        else:
-            self._use_adtree = False
-            from .contab_simple_tree import ContabGenerator
-            #self.bic_process_contab_function = _bic_process_tree_contab
-            self._contab_generator = ContabGenerator(data, self._arities)
 
     def data(self):
         '''
@@ -588,6 +504,11 @@ class DiscreteData:
         '''
         return self._varidx
 
+    def contab(self,variables):
+        cols = np.array([self._varidx[v] for v in variables], dtype=np.uint32)
+        cols.sort() #AD tree requires variables to be in order
+        return make_contab(self._data,cols,self._arities[cols])
+    
 #    def ll_score(self,child,parents):
 #        if len(parents) == 0:
 #            return 0.0
@@ -627,10 +548,6 @@ class BDeu(DiscreteData):
         # for upper bounds
         self._atoms = get_atoms(self._data,self._arities)
 
-        if self._use_adtree:
-            self.bdeu_process_contab_function = _bdeu_process_array_contab
-        else:
-            self.bdeu_process_contab_function = _bdeu_process_tree_contab    
         
     @property
     def alpha(self):
@@ -716,7 +633,6 @@ class BDeu(DiscreteData):
           If not supplied (=None)
           then the value of `self.alpha` is used.
 
-
         Returns:
          float : The BDeu score component.
         '''
@@ -726,9 +642,10 @@ class BDeu(DiscreteData):
         if len(variables) == 0:
             return lgamma(alpha) - lgamma(alpha + self._data_length), 1
         else:
-            variables = np.array([self._varidx[x] for x in list(variables)], dtype=np.uint32)
-            variables.sort() #AD tree requires variables to be in order
-            return _bdeu_score_component(self._contab_generator, self._arities, variables, alpha, self.bdeu_process_contab_function)
+            cols = np.array(sorted([self._varidx[x] for x in list(variables)]), dtype=np.uint32)
+            return compute_bdeu_component(
+                self._data,cols,np.array([self._arities[i] for i in cols], dtype=np.uint32),alpha)
+
 
     def bdeu_score(self, child, parents):
 
@@ -820,18 +737,4 @@ class BDeu(DiscreteData):
         return score_dict
 
     
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='BDeu local score generation (for Bayesian network learning)')
-    parser.add_argument('data_file', help="Data file in GOBNILP format")
-    parser.add_argument('scores_file', help="Where to store the generated scores")
-    parser.add_argument('-p','--palim', type=int, help="Parent set size limit")
-    parser.add_argument('-a', '--alpha', type=float, default=1.0, help="The effective sample size")
-    parser.add_argument('-t', '--adtree', action="store_true", help="Use and ADTree")
-    parser.add_argument('-r', '--rmin', type=int, default=32, help = "Rmin value for the ADTree")
-
-    args = parser.parse_args()
-    
-    local_scores_generator = BDeu(args.data_file, use_adtree = args.adtree, rmin=args.rmin, max_palim_size=args.palim)
-    local_scores = local_scores_generator.bdeu_scores(alpha=args.alpha,palim=args.palim)
-    save_local_scores(local_scores, args.scores_file)
     

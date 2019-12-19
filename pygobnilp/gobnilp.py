@@ -2836,7 +2836,7 @@ class Gobnilp(Model):
     def learn(self, data_source=None, start='no data', end='output shown', data_type='discrete',
               local_score_type='BDeu', local_score_fun=None,
               varnames = None,
-              arities = None, use_adtree=False, rmin=32, palim=3,
+              arities = None, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
               nsols=1, kbest=False, mec=False, consfile=None, pruning=True, edge_penalty=0.0, plot=True,
@@ -2861,10 +2861,6 @@ class Gobnilp(Model):
                                this value is ignored and the arities are those given in the file. 
                                Otherwise if None then the arity for a variable is set to the number of distinct
                                values observed for that variable in the data. Ignored for continuous data.
-         use_adtree( bool): Whether to build and use an AD-tree. Using an AD-tree is typically only faster
-                               for very large datasets. Ignored for continuous data.
-         rmin (int): The minimum number of records for a node in an AD-tree to be a 'row list'.
-                        This value is ignored if ``use_adtree=False`` or continuous data is used.
          palim (int/None): If an integer, this should be the maximum size of parent sets.
          alpha (float): The equivalent sample size for BDeu local score generation.
          nu (iter/None): The mean vector for the Normal part of the normal-Wishart prior for BGe scoring. 
@@ -2928,8 +2924,7 @@ class Gobnilp(Model):
             if local_scores_source is None:
                 # no data yet, so read it in
                 if data_type == 'discrete':
-                    self._data = DiscreteData(data_source, varnames=varnames, arities=arities,                  # reading data
-                                                        use_adtree=use_adtree, rmin=rmin, max_palim_size=palim) # for AD-tree
+                    self._data = DiscreteData(data_source, varnames=varnames, arities=arities) 
                 elif data_type == 'continuous':
                     self._data = ContinuousData(data_source, varnames=varnames)
 

@@ -45,8 +45,6 @@ parser.add_argument('--starts', help="Starting DAG(s) in bnlearn modelstring for
 parser.add_argument('-u','--nopruning', action="store_true", help="No pruning of local scores to be done")
 parser.add_argument('-p','--palim', type=int, default=3, help="Parent set size limit (for local score generation)")
 parser.add_argument('-a', '--alpha', type=float, default=1.0, help="The equivalent sample size (for BDeu local score generation)")
-parser.add_argument('-t', '--adtree', action="store_true", help="Use an ADTree (for local score generation from discrete data)")
-parser.add_argument('-r', '--rmin', type=int, default=32, help = "Rmin value for the ADTree (for local score generation from discrete data)")
 #parser.add_argument('--nu', type=float, default=None, help ="the mean vector for the Normal part of the normal-Wishart prior for BGe scoring. If None then the sample mean is used.")
 parser.add_argument('--alpha_mu', type=float, default=1.0, help = "imaginary sample size value for the Normal part of the normal-Wishart prior for BGe scoring")
 parser.add_argument('--alpha_omega', type=int, default=None, help = "Degrees of freedom for the Wishart part of the normal-Wishart prior for BGe scoring. Must be at least the number of variables. If None then set to 2 more than the number of variables.")
@@ -75,5 +73,4 @@ else:
                     **argsdict)
     else:
         model.learn(data_type='discrete',local_score_type='BDeu',
-                    use_adtree=args.adtree, rmin=args.rmin,
                     alpha=args.alpha,**argsdict)
