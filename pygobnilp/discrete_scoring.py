@@ -669,9 +669,10 @@ class BDeu(DiscreteData):
 
         simple_ub = -log(self.arity(child)) * non_zero_count
 
-        james_ub = self.upper_bound_james(child,parents)
+        #james_ub = self.upper_bound_james(child,parents)
         
-        return parent_score - family_score, min(simple_ub,james_ub)
+        #return parent_score - family_score, min(simple_ub,james_ub)
+        return parent_score - family_score, simple_ub
 
         
     def bdeu_scores(self,palim=None,pruning=True,alpha=None):
