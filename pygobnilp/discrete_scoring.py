@@ -41,12 +41,13 @@ import pandas as pd
 # START functions for contabs
 
 @jit(nopython=True)
-def make_contab(data, cols, arities):
+def make_contab(data, counts, cols, arities):
     '''
     Compute a marginal contingency table from data
 
     Args:
-     data (numpy array): the data as a 2-d array, each row is a datapoint
+     data (numpy array): the unique datapoints as a 2-d array, each row is a datapoint, assumed unique
+     counts (numpy array): the count of how often each unique datapoint occurs in the original data
      cols (numpy array): the columns (=variables) for the marginal contingency table.
       columns must be ordered low to high
      arities (numpy array): the arities of the variables (=columns) for the contingency table
@@ -68,21 +69,20 @@ def make_contab(data, cols, arities):
         idx -= 1
     contab = np.zeros(stride,dtype=np.uint32)
     for rowidx in range(data.shape[0]):
-        row = data[rowidx,:]
+        #row = data[rowidx,:] SLOWER
         idx = 0
-        for i, s in enumerate(strides):
-            #idx += data[rowidx,cols[i]]*s
-            idx += row[cols[i]]*s
-        contab[idx] += 1
-        # can't do following since numba only allows 'dot' on floats
-        # could try using floats
-        #contab[row[cols].dot(strides)] += 1
+        for i in range(p):
+            #idx += row[cols[i]]*strides[i] SLOWER
+            idx += data[rowidx,cols[i]]*strides[i]
+        # for i, s in enumerate(strides): SLOWER
+        #     idx += row[cols[i]]*s SLOWER
+        contab[idx] += counts[rowidx]
     return contab
 
 
 @jit(nopython=True)
-def compute_bdeu_component(data, cols, arities, alpha):
-    contab = make_contab(data, cols, arities)
+def compute_bdeu_component(data, counts, cols, arities, alpha):
+    contab = make_contab(data, counts, cols, arities)
     alpha_div_arities = alpha / len(contab)
     non_zero_count = 0
     score = 0.0
@@ -440,6 +440,10 @@ class DiscreteData:
         for i, v in enumerate(self._variables):
             self._varidx[v] = i
 
+        self._unique_data, counts = np.unique(self._data, axis=0, return_counts=True)
+        self._unique_data_counts = np.array(counts,np.uint32)
+            
+            
     def data(self):
         '''
         The data with all values converted to unsigned integers.
@@ -644,7 +648,7 @@ class BDeu(DiscreteData):
         else:
             cols = np.array(sorted([self._varidx[x] for x in list(variables)]), dtype=np.uint32)
             return compute_bdeu_component(
-                self._data,cols,np.array([self._arities[i] for i in cols], dtype=np.uint32),alpha)
+                self._unique_data,self._unique_data_counts,cols,np.array([self._arities[i] for i in cols], dtype=np.uint32),alpha)
 
 
     def bdeu_score(self, child, parents):
