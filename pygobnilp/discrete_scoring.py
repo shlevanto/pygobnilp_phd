@@ -77,12 +77,36 @@ def make_contab(data, counts, cols, arities):
         # for i, s in enumerate(strides): SLOWER
         #     idx += row[cols[i]]*s SLOWER
         contab[idx] += counts[rowidx]
-    return contab
+    return contab, strides
+
+
+@jit(nopython=True)
+def compute_ll(data, counts, cols, child_idx, arities):
+    contab, strides = make_contab(data, counts, cols, arities)
+    child_stride = strides[child_idx]
+    child_arity = arities[child_idx]
+    ll = 0.0
+    child_counts = np.empty(child_arity,dtype=np.int32)
+    contab_size = len(contab)
+    for i in range(0,contab_size,child_arity*child_stride):
+        for j in range(i,i+child_stride):
+            n = 0
+            for k in range(child_arity):
+                count = contab[j]
+                child_counts[k] = count
+                n += count
+                j += child_stride
+            if n > 0:
+                for c in child_counts:
+                    if c > 0:
+                        ll += c * log(c/n)
+
+    return ll
 
 
 @jit(nopython=True)
 def compute_bdeu_component(data, counts, cols, arities, alpha):
-    contab = make_contab(data, counts, cols, arities)
+    contab = make_contab(data, counts, cols, arities)[0]
     alpha_div_arities = alpha / len(contab)
     non_zero_count = 0
     score = 0.0
@@ -511,13 +535,14 @@ class DiscreteData:
     def contab(self,variables):
         cols = np.array([self._varidx[v] for v in variables], dtype=np.uint32)
         cols.sort() #AD tree requires variables to be in order
-        return make_contab(self._data,cols,self._arities[cols])
+        return make_contab(self._unique_data,self._unique_data_counts,cols,self._arities[cols])[0]
     
-#    def ll_score(self,child,parents):
-#        if len(parents) == 0:
-#            return 0.0
-#        variables = np.array([self._varidx[x] for x in list(parents)+[child]], dtype=np.uint32)
-#        contab = self._contab_generator.make_contab(
+    def ll_score(self,child,parents):
+        cols = np.array(sorted([self._varidx[x] for x in list(parents)+[child]]), dtype=np.uint32)
+        child_col = self._varidx[child]
+        child_idx = tuple(cols).index(child_col)
+        return compute_ll(self._unique_data,self._unique_data_counts,cols,child_idx,self._arities[cols]), 0
+
     
 
 class BIC(DiscreteData):

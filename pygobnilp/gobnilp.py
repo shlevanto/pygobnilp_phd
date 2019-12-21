@@ -2903,7 +2903,7 @@ class Gobnilp(Model):
             # OK, to perhaps rewind
             self._stage = start
         
-        if local_score_type != 'BDeu' and local_score_type != 'BGe':
+        if local_score_type != 'BDeu' and local_score_type != 'BGe' and local_score_type != 'LL':
             raise ValueError("Unrecognised scoring function: {0}".format(local_score_type))            
 
         if data_type != 'discrete' and data_type != 'continuous':
@@ -2946,7 +2946,9 @@ class Gobnilp(Model):
                     local_score_fun = BDeu(self._data,alpha=alpha).bdeu_score
                 elif local_score_type == 'BGe':
                     local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
-
+                elif local_score_type == 'LL':
+                    local_score_fun = self._data.ll_score
+                    
                 # take any non-zero edge penalty into account
                 if edge_penalty != 0.0:
                     def local_score_edge(child,parents):
