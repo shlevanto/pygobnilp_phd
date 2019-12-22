@@ -33,7 +33,10 @@ parser.add_argument('-k', '--kbest', action='store_true', help = "Whether to fin
 parser.add_argument('-m', '--mec', action='store_true', help = "Whether to only allow one DAG per Markov Equivalence Class")
 #parser.add_argument('-c', '--chordal', action='store_true', help = "Whether to only allow DAGs equivalent to chordal graphs")
 parser.add_argument('-s','--scores', action="store_true", help="The input consists of pre-computed local scores (not discrete data)")
-parser.add_argument('-b','--bge', action="store_true", help="The input consists of continuous, not discrete, data and BGe scoring will be used")
+parser.add_argument('--bge', action="store_true", help="The input consists of continuous, not discrete, data and BGe scoring will be used")
+parser.add_argument('--bic', action="store_true", help="The input consists of discrete data and BIC scoring should be used")
+parser.add_argument('--aic', action="store_true", help="The input consists of discrete data and AIC scoring should be used")
+parser.add_argument('--ll', action="store_true", help="The input consists of discrete data and LL scoring should be used")
 parser.add_argument('-v', '--verbose', action="count", default=0, help="How verbose to be")
 parser.add_argument('-g', '--gurobi_output', action="store_true", help="Whether to show Gurobi output")
 parser.add_argument('-o', '--output_file', help="PDF (or DOT) file for learned BN")
@@ -72,5 +75,13 @@ else:
                     alpha_mu=args.alpha_mu, alpha_omega=args.alpha_omega,
                     **argsdict)
     else:
-        model.learn(data_type='discrete',local_score_type='BDeu',
+        if args.bic:
+            lst='BIC'
+        elif args.aic:
+            lst='AIC'
+        elif args.ll:
+            lst='LL'
+        else:
+            lst='BDeu'
+        model.learn(data_type='discrete',local_score_type=lst,
                     alpha=args.alpha,**argsdict)

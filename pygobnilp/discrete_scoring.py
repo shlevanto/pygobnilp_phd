@@ -550,13 +550,52 @@ class BIC(DiscreteData):
     Discrete data with attributes and methods for BIC scoring
     """
     def __init__(self,data):
-        '''Initialises a `IC` object.
+        '''Initialises a `BIC` object.
 
         Args:
          data (DiscreteData): data
         '''
         self.__dict__.update(data.__dict__)
+        fn = 0.5 * log(self._data_length)  # Carvalho notation
+        self._child_penalties = {v:fn*(self.arity(v)-1) for v in self._variables}
+        #self._bestll = {}
+        #for i, child in enumerate(self._variables):
+        #    fullpa = self._variables[:i]+self._variables[i+1:]
+        #    contab gets too big
+        #    self._bestll[child] = self.ll_score(child,fullpa)[0]
 
+        
+    def bic_score(self,child,parents):
+        numparentinsts = 1
+        for pa in parents:
+            numparentinsts *= self.arity(pa)
+        penalty = numparentinsts * self._child_penalties[child]
+        # number of parent insts will at least double if any added
+        return self.ll_score(child,parents)[0] - penalty, - (penalty*2)
+
+# should 'merge' with BIC some time
+class AIC(DiscreteData):
+    """
+    Discrete data with attributes and methods for AIC scoring
+    """
+    def __init__(self,data):
+        '''Initialises a `BIC` object.
+
+        Args:
+         data (DiscreteData): data
+        '''
+        self.__dict__.update(data.__dict__)
+        self._child_penalties = {v:self.arity(v)-1 for v in self._variables}
+
+    def aic_score(self,child,parents):
+        numparentinsts = 1
+        for pa in parents:
+            numparentinsts *= self.arity(pa)
+        penalty = numparentinsts * self._child_penalties[child]
+        # number of parent insts will at least double if any added
+        return self.ll_score(child,parents)[0] - penalty, -(penalty*2)
+
+    
 class BDeu(DiscreteData):
     """
     Discrete data with attributes and methods for BDeu scoring

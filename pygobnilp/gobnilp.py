@@ -41,7 +41,7 @@ except ImportError as e:
     print(e)
 
 try:
-    from .discrete_scoring import DiscreteData, BDeu
+    from .discrete_scoring import DiscreteData, BDeu, BIC, AIC
 except ImportError as e:
     print("Could not import BDeu score generating code!")
     print(e)
@@ -900,7 +900,9 @@ class Gobnilp(Model):
                 self.setParam(p,fn(v))
 
         self._stage = 'no data'
-                
+
+        self._known_local_scores = frozenset(['BDeu','BGe','LL','BIC', 'AIC'])
+        
     def _getmipvars(self,vtype):
         try:
             return self._mipvars[vtype]
@@ -2903,7 +2905,7 @@ class Gobnilp(Model):
             # OK, to perhaps rewind
             self._stage = start
         
-        if local_score_type != 'BDeu' and local_score_type != 'BGe' and local_score_type != 'LL':
+        if local_score_type not in self._known_local_scores:
             raise ValueError("Unrecognised scoring function: {0}".format(local_score_type))            
 
         if data_type != 'discrete' and data_type != 'continuous':
@@ -2948,6 +2950,11 @@ class Gobnilp(Model):
                     local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
                 elif local_score_type == 'LL':
                     local_score_fun = self._data.ll_score
+                elif local_score_type == 'BIC':
+                    local_score_fun = BIC(self._data).bic_score
+                elif local_score_type == 'AIC':
+                    local_score_fun = AIC(self._data).aic_score
+
                     
                 # take any non-zero edge penalty into account
                 if edge_penalty != 0.0:
