@@ -81,9 +81,9 @@ def make_contab(data, counts, cols, arities, maxsize):
     while idx > -1:
         strides[idx] = stride
         stride *= arities[idx]
+        if stride > maxsize:
+            return np.zeros(0,dtype=np.uint32), stride, strides
         idx -= 1
-    if stride > maxsize:
-        return np.zeros(0,dtype=np.uint32), stride, strides
     contab = np.zeros(stride,dtype=np.uint32)
     for rowidx in range(data.shape[0]):
         #row = data[rowidx,:] SLOWER
@@ -117,7 +117,7 @@ def compute_ll_from_flat_contab(contab,strides,child_idx,child_arity,numinsts):
     return ll, numinsts
 
 @jit(nopython=True)
-def compute_ll_from_unique_contab(data,counts,pa_uniqs,pa_idxs,child_arity,orig_child_col,numinsts):
+def compute_ll_from_unique_contab(data,counts,pa_uniqs,pa_idxs,child_arity,orig_child_col):
     #print(len(pa_uniqs),len(data),len(pa_idxs),child_arity,orig_child_col)
     child_counts = np.zeros((len(pa_uniqs),np.int64(child_arity)),dtype=np.uint32)
     for i in range(len(data)):
@@ -132,12 +132,12 @@ def compute_ll_from_unique_contab(data,counts,pa_uniqs,pa_idxs,child_arity,orig_
             c = child_counts[i,k]
             if c > 0:
                 ll += c * log(c/n)
-    return ll, numinsts
+    return ll, 0 # note numinsts too big to report!
 
 #@jit(nopython=True)
 def compute_ll(data, counts, cols, orig_child_col, child_idx, arities, maxflatcontabsize):
     '''
-    Returns log-likelihood and number of joint instantiations of parents
+    Returns log-likelihood and, if not too big, number of joint instantiations of parents
     '''
     child_arity = arities[child_idx]
     contab, numinsts, strides = make_contab(data, counts, cols, arities, maxflatcontabsize)
@@ -150,7 +150,7 @@ def compute_ll(data, counts, cols, orig_child_col, child_idx, arities, maxflatco
         pa_cols = np.delete(cols,child_idx)
         #print('foo',pa_cols)
         pa_uniqs, pa_idxs = np.unique(data[:,pa_cols],axis=0,return_inverse=True) # numba cannot handle return_inverse arg
-        return compute_ll_from_unique_contab(data,counts,pa_uniqs,pa_idxs,child_arity,orig_child_col,numinsts/child_arity)
+        return compute_ll_from_unique_contab(data,counts,pa_uniqs,pa_idxs,child_arity,orig_child_col)
 
 @jit(nopython=True)
 def compute_bdeu_component(data, counts, cols, arities, alpha, maxflatcontabsize):
@@ -620,6 +620,7 @@ class _LLPenalised(DiscreteData):
         Retun LL score minus complexity penalty, and also upper bound on this score for proper supersets
         '''
         this_ll_score, numinsts = self.ll_score(child,parents)
+        assert numinsts > 0
         penalty = numinsts * self._child_penalties[child]
         # number of parent insts will at least double if any added
         #print(child,parents,this_ll_score,penalty,self._maxllh[child])
