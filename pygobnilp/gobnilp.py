@@ -41,7 +41,7 @@ except ImportError as e:
     print(e)
 
 try:
-    from .discrete_scoring import DiscreteData, BDeu, BIC, AIC
+    from .discrete_scoring import DiscreteData, BDeu, BIC, AIC, LL
 except ImportError as e:
     print("Could not import BDeu score generating code!")
     print(e)
@@ -2949,11 +2949,11 @@ class Gobnilp(Model):
                 elif local_score_type == 'BGe':
                     local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
                 elif local_score_type == 'LL':
-                    local_score_fun = self._data.ll_score
+                    local_score_fun = LL(self._data).score
                 elif local_score_type == 'BIC':
-                    local_score_fun = BIC(self._data).bic_score
+                    local_score_fun = BIC(self._data).score
                 elif local_score_type == 'AIC':
-                    local_score_fun = AIC(self._data).aic_score
+                    local_score_fun = AIC(self._data).score
 
                     
                 # take any non-zero edge penalty into account
