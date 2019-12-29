@@ -40,12 +40,50 @@ The BDeu class
 
 .. autoclass:: pygobnilp.discrete_scoring.BDeu
    :members:
-      
+   :show-inheritance:
+   
 The BGe class
 -------------
 
 .. autoclass:: pygobnilp.continuous_scoring.BGe
    :members:
+   :show-inheritance:
+      
+The DiscreteData class
+-----------------------------
+
+.. autoclass:: pygobnilp.discrete_scoring.DiscreteData
+   :members:
+
+      
+The LLPenalised class
+-----------------------------
+
+.. autoclass:: pygobnilp.discrete_scoring.LLPenalised
+   :members:
+   :show-inheritance:
+      
+The LL class
+-----------------------------
+
+.. autoclass:: pygobnilp.discrete_scoring.LL
+   :members:
+   :show-inheritance:
+      
+The BIC class
+-----------------------------
+
+.. autoclass:: pygobnilp.discrete_scoring.BIC
+   :members:
+   :show-inheritance:
+
+      
+The AIC class
+-----------------------------
+
+.. autoclass:: pygobnilp.discrete_scoring.AIC
+   :members:
+   :show-inheritance:
       
 Functions in the gobnilp module
 -------------------------------

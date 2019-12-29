@@ -54,7 +54,10 @@ def marginalise_uniques_contab(unique_insts, counts, cols):
 @jit(nopython=True)
 def make_contab(data, counts, cols, arities, maxsize):
     '''
-    Compute a marginal contingency table from data
+    Compute a marginal contingency table from data or report
+    that the desired contingency table would be too big.
+
+    All inputs except the last are arrays of unsigned integers
 
     Args:
      data (numpy array): the unique datapoints as a 2-d array, each row is a datapoint, assumed unique
@@ -63,14 +66,15 @@ def make_contab(data, counts, cols, arities, maxsize):
       columns must be ordered low to high
      arities (numpy array): the arities of the variables (=columns) for the contingency table
       order must match that of `cols`.
+     maxsize (int): the maximum size (number of cells) allowed for a contingency table
 
     Returns:
      tuple: 1st element is of type ndarray: 
       If the contingency table would have more elements than `maxsize' then the array is empty
+      (and the 2nd element of the tuple should be ignored)
       else an array of counts of length equal to the product of the `arities`.
-      Counts are in lexicographic order of the joint instantiations of the variables
-      2nd element: the product of the `arities`.
-      3rd element: the 'strides' for each column (=variable)
+      Counts are in lexicographic order of the joint instantiations of the columns (=variables)
+      2nd element: the 'strides' for each column (=variable)
     '''
     p = len(cols)
     #if arities = (2,3,3) then strides = 9,3,1
@@ -82,22 +86,18 @@ def make_contab(data, counts, cols, arities, maxsize):
         strides[idx] = stride
         stride *= arities[idx]
         if stride > maxsize:
-            return np.zeros(0,dtype=np.uint32), stride, strides
+            return np.empty(0,dtype=np.uint32), strides
         idx -= 1
     contab = np.zeros(stride,dtype=np.uint32)
     for rowidx in range(data.shape[0]):
-        #row = data[rowidx,:] SLOWER
         idx = 0
         for i in range(p):
-            #idx += row[cols[i]]*strides[i] SLOWER
             idx += data[rowidx,cols[i]]*strides[i]
-        # for i, s in enumerate(strides): SLOWER
-        #     idx += row[cols[i]]*s SLOWER
         contab[idx] += counts[rowidx]
-    return contab, stride, strides
+    return contab, strides
 
 @jit(nopython=True)
-def compute_ll_from_flat_contab(contab,strides,child_idx,child_arity,numinsts):
+def _compute_ll_from_flat_contab(contab,strides,child_idx,child_arity):
     child_stride = strides[child_idx]
     ll = 0.0
     child_counts = np.empty(child_arity,dtype=np.int32)
@@ -114,12 +114,11 @@ def compute_ll_from_flat_contab(contab,strides,child_idx,child_arity,numinsts):
                 for c in child_counts:
                     if c > 0:
                         ll += c * log(c/n)
-    return ll, numinsts
+    return ll
 
 @jit(nopython=True)
-def compute_ll_from_unique_contab(data,counts,pa_uniqs,pa_idxs,child_arity,orig_child_col):
-    #print(len(pa_uniqs),len(data),len(pa_idxs),child_arity,orig_child_col)
-    child_counts = np.zeros((len(pa_uniqs),np.int64(child_arity)),dtype=np.uint32)
+def _compute_ll_from_unique_contab(data,counts,n_uniqs,pa_idxs,child_arity,orig_child_col):
+    child_counts = np.zeros((n_uniqs,np.int64(child_arity)),dtype=np.uint32)
     for i in range(len(data)):
         child_counts[pa_idxs[i],data[i,orig_child_col]] += counts[i]
     ll = 0.0
@@ -132,25 +131,7 @@ def compute_ll_from_unique_contab(data,counts,pa_uniqs,pa_idxs,child_arity,orig_
             c = child_counts[i,k]
             if c > 0:
                 ll += c * log(c/n)
-    return ll, 0 # note numinsts too big to report!
-
-#@jit(nopython=True)
-def compute_ll(data, counts, cols, orig_child_col, child_idx, arities, maxflatcontabsize):
-    '''
-    Returns log-likelihood and, if not too big, number of joint instantiations of parents
-    '''
-    child_arity = arities[child_idx]
-    contab, numinsts, strides = make_contab(data, counts, cols, arities, maxflatcontabsize)
-    
-    if len(contab) > 0: #if successfully created standard flat contab
-        return compute_ll_from_flat_contab(contab,strides,child_idx,child_arity,numinsts/child_arity)
-    else:
-        #have to make contab represented by unique insts
-        #print('too big!')
-        pa_cols = np.delete(cols,child_idx)
-        #print('foo',pa_cols)
-        pa_uniqs, pa_idxs = np.unique(data[:,pa_cols],axis=0,return_inverse=True) # numba cannot handle return_inverse arg
-        return compute_ll_from_unique_contab(data,counts,pa_uniqs,pa_idxs,child_arity,orig_child_col)
+    return ll
 
 @jit(nopython=True)
 def compute_bdeu_component(data, counts, cols, arities, alpha, maxflatcontabsize):
@@ -584,17 +565,17 @@ class DiscreteData:
 
     def contab(self,variables):
         cols = np.array([self._varidx[v] for v in variables], dtype=np.uint32)
-        cols.sort() #AD tree requires variables to be in order
+        cols.sort() 
         return make_contab(self._unique_data,self._unique_data_counts,cols,self._arities[cols],self._maxflatcontabsize)[0]
     
 
 
-class _LLPenalised(DiscreteData):
+class LLPenalised(DiscreteData):
     '''Abstract class for penalised log likelihood scores
     '''
 
     def __init__(self,data):
-        '''Initialises a `_LLPenalised` object.
+        '''Initialises a `LLPenalised` object.
 
         Args:
          data (DiscreteData): data
@@ -606,28 +587,65 @@ class _LLPenalised(DiscreteData):
             
     def ll_score(self,child,parents):
         '''
-        Pure LL score, no complexity penalty, plus size of ??
+        The fitted log-likelihood score for `child` having `parents`
+
+        In addition to the score the number of joint instantations of the parents is returned.
+        If this number would cause an overflow `None` is returned instead of the number.
+
+        Args:
+         child (str): The child variable
+         parents (iter): The parent variables
+
+        Returns:
+         tuple: (1) The fitted log-likelihood local score for the given family and 
+                (2) the number of joint instantations of the parents (or None if too big)
         '''
-        #print(child,parents)
         family_cols = np.array(sorted([self._varidx[x] for x in list(parents)+[child]]), dtype=np.uint32)
+        contab, strides = make_contab(self._unique_data, self._unique_data_counts, family_cols,
+                                      self._arities[family_cols], self._maxflatcontabsize)
+
         child_col = self._varidx[child]
+        child_arity = self._arities[child_col]
         child_idx = tuple(family_cols).index(child_col) # where in family_cols is the col for the child
-        return compute_ll(self._unique_data,self._unique_data_counts,family_cols,child_col,child_idx,
-                          self._arities[family_cols],self._maxflatcontabsize)
+            
+        if len(contab) > 0: #if successfully created standard flat contab
+            return _compute_ll_from_flat_contab(contab,strides,child_idx,child_arity), len(contab)/child_arity
+        else:
+            #have to make contab represented by unique insts
+            pa_cols = np.delete(family_cols,child_idx)
+            pa_uniqs, pa_idxs = np.unique(data[:,pa_cols],axis=0,return_inverse=True) # numba cannot handle return_inverse arg
+            return _compute_ll_from_unique_contab(self._unique_data, self._unique_data_counts,
+                                                  len(pa_uniqs), pa_idxs, child_arity, child_col), None
     
     def score(self,child,parents):
         '''
-        Retun LL score minus complexity penalty, and also upper bound on this score for proper supersets
+        Return LL score minus complexity penalty for `child` having `parents`, 
+        and also upper bound on the score for proper supersets.
+
+        To compute the penalty the number of joint instantations is multiplied by the arity
+        of the child minus one. This value is then multiplied by log(N)/2 for BIC and 1 for AIC.
+
+        Args:
+         child (str): The child variable
+         parents (iter): The parent variables
+
+        Raises:
+         ValueError: If the number of joint instantations of the parents would cause an overflow
+          when computing the penalty
+        
+        Returns:
+         tuple: The local score for the given family and an upper bound on the local score 
+         for proper supersets of `parents`
         '''
         this_ll_score, numinsts = self.ll_score(child,parents)
-        assert numinsts > 0
+        if numinsts is None:
+            raise ValueError('Too many joint instantiations of parents {0} to compute penalty'.format(parents))
         penalty = numinsts * self._child_penalties[child]
         # number of parent insts will at least double if any added
-        #print(child,parents,this_ll_score,penalty,self._maxllh[child])
         return this_ll_score - penalty, self._maxllh[child] - (penalty*2)
-        #return this_ll_score - penalty, - (penalty*2)
 
-class LL(_LLPenalised):
+
+class LL(LLPenalised):
 
     def __init__(self,data):
         '''Initialises a `LL` object.
@@ -638,9 +656,21 @@ class LL(_LLPenalised):
         super(LL,self).__init__(data)
 
     def score(self,child,parents):
+        '''
+        Return the fitted log-likelihood score for `child` having `parents`, 
+        and also upper bound on the score for proper supersets of `parents`.
+
+        Args:
+         child (str): The child variable
+         parents (iter): The parent variables
+
+        Returns:
+         tuple: The fitted log-likelihood local score for the given family and an upper bound on the local score 
+         for proper supersets of `parents`
+        '''
         return self.ll_score(child,parents)[0], self._maxllh[child]
         
-class BIC(_LLPenalised):
+class BIC(LLPenalised):
     """
     Discrete data with attributes and methods for BIC scoring
     """
@@ -654,30 +684,19 @@ class BIC(_LLPenalised):
         fn = 0.5 * log(self._data_length)  # Carvalho notation
         self._child_penalties = {v:fn*(self.arity(v)-1) for v in self._variables}
 
-        
-# should 'merge' with BIC some time
-class AIC(DiscreteData):
+class AIC(LLPenalised):
     """
     Discrete data with attributes and methods for AIC scoring
     """
     def __init__(self,data):
-        '''Initialises a `BIC` object.
+        '''Initialises an `AIC` object.
 
         Args:
          data (DiscreteData): data
         '''
-        self.__dict__.update(data.__dict__)
+        super(AIC,self).__init__(data)
         self._child_penalties = {v:self.arity(v)-1 for v in self._variables}
 
-    def aic_score(self,child,parents):
-        numparentinsts = 1
-        for pa in parents:
-            numparentinsts *= self.arity(pa)
-        penalty = numparentinsts * self._child_penalties[child]
-        # number of parent insts will at least double if any added
-        return self.ll_score(child,parents)[0] - penalty, -(penalty*2)
-
-    
 class BDeu(DiscreteData):
     """
     Discrete data with attributes and methods for BDeu scoring
