@@ -166,11 +166,31 @@ def _write_local_scores(dkt,f):
 
     
 class MN(nx.Graph):
+    '''
+    Subclass of 
+    `networkx.Graph <https://networkx.github.io/documentation/stable/reference/classes/graph.html>`_. 
+    See documentation for 
+    `networkx.Graph <https://networkx.github.io/documentation/stable/reference/classes/graph.html>`_ 
+    for all methods not documented here.
+
+    At present this class only implements the structure of a Markov network - an undirected graph
+    '''
 
     def satisfy_ci(self,a,b,s):
         '''Does the Markov network satisfy `a` _|_ `b` | `s`?
         i.e. is there a path from a node in `a` to a node in
         `b` which avoids nodes in `s`?
+
+        This method does not check that `a`, `b` and `s` are disjoint
+        or that `a` and `b` are non-empty.
+
+        Args:
+         a (iter): A set of nodes in a Markov network
+         b (iter): A set of nodes in a Markov network
+         s (iter): A set of nodes in a Markov network
+
+        Returns:
+         bool : Whether the Markov network satisfies `a` _|_ `b` | `s`
         '''
         g = self.copy()
         g.remove_nodes_from(s)
@@ -1011,7 +1031,21 @@ class Gobnilp(Model):
         # could do more propagation here
         
         self._obligatory_conditional_independences.add((aset,bset,sset))
-            
+
+    def set_stage(self,stage):
+        '''Manually set the stage of learning
+
+        Args:
+         stage (str): The desired stage of learning
+        
+        Raises:
+         ValueError: If `stage` is not among the list of possible stages
+        '''
+        if stage not in self.stages_set:
+            raise ValueError('{0} is not a recognised stage. Should be one of {1}'.format(stage,self_stages))
+        self._stage = stage
+
+        
     def set_start(self,dag):
         self.set_starts([dag])
         
@@ -1919,6 +1953,22 @@ class Gobnilp(Model):
         #self.add_variables_gendiff()
         #self.add_variables_absgendiff()
 
+    def add_constraints_choose_best_for_order(self):
+        '''Adds the constraint that the highest scoring parent set
+        should be chosen whenever whenever the total order variables
+        indicate that doing so would not cause a cycle
+        '''
+        n = 0
+        for child, parentsets in self.ordered_parentsets.items():
+            best = parentsets[0]
+            fv = self.family[child][best]
+            self.addGenConstrAnd(fv,[self.total_order[child,pa] for pa in best])
+            n += 1
+        if self._verbose:
+            print('%d "best for order" constraints declared' % n, file=sys.stderr)
+
+                              
+        
     def add_constraints_gen_index_link(self):
         '''Adds the constraint linking generation to generation index variables
         '''
