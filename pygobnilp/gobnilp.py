@@ -76,6 +76,28 @@ warnings.filterwarnings('ignore')
 
 # utility functions
 
+def mhs(subsets,ground_set = None):
+    if ground_set is None:
+        ground_set = set()
+        for x in subsets:
+            ground_set.update(x)
+    m = Model()
+    m.Params.OutputFlag = 0
+    vs = {}
+    for v in ground_set:
+        vs[v] = m.addVar(obj=1,vtype=GRB.BINARY)
+    for s in subsets:
+        m.addConstr(LinExpr([1]*len(s),[vs[v] for v in s]), GRB.GREATER_EQUAL, 1)
+    m.optimize()
+    if m.Status == GRB.INFEASIBLE:
+        return None
+    elif m.Status == GRB.OPTIMAL:
+        return [v for v, mipvar in vs.items() if mipvar.Xn > 0.5] 
+    else:
+        raise ValueError("something wrong")
+            
+    
+
 def _enforce_palim(dkt,palim):
     for scored_parentsets in dkt.values():
         for parentset in scored_parentsets.keys():
@@ -1069,7 +1091,7 @@ class Gobnilp(Model):
             for child in dag.nodes:
                 self.family[child][frozenset(dag.predecessors(child))].Start = 1
             
-    def optimize(self):
+    def gobnilp_optimize(self):
         '''Solve the MIP model constructed by Gobnilp
         
         This overrides Gurobi's optimize method by hard coding in calls to
@@ -1407,6 +1429,29 @@ class Gobnilp(Model):
         if not hasattr(self,'_bn_variables'):
             self._bn_variables = sorted(self._family_scores)
 
+    def add_constraints_total_order_local_score(self):
+        ordered_parentsets = self.ordered_parentsets
+        fs = self.family_scores
+        total_order = self.total_order
+        for child, ops in ordered_parentsets.items():
+            fschild = fs[child]
+            global_ub = fschild[ops[0]]
+            better_pas = [ops[0]]
+            for pas in ops[1:]:
+                paset = frozenset(pas)
+                this_ub = fschild[paset]
+                diff = global_ub - this_ub
+                removed_better = [x - paset for x in better_pas]
+                minhs = mhs(removed_better)
+                mipvars = [total_order[x,child] for x in minhs]
+                r = self.addVar(vtype=GRB.BINARY)
+                self.addGenConstrAnd(r,mipvars)
+                self.addGenConstrIndicator(r,True,self._local_score[child], GRB.LESS_EQUAL, this_ub)
+                #print(child,pas,minhs)
+                #n = len(minhs)
+                #self.addConstr(LinExpr([1.0]+[diff]*n,[self._local_score[child]]+mipvars), GRB.LESS_EQUAL, n*global_ub - (n-1)*this_ub)
+                better_pas.append(pas)
+            
     def add_constraints_one_dag_per_MEC(self,dynamic=True,careful=False):
         '''Adds a constraint that only one DAG per Markov equivalence class is feasible.
 
@@ -3051,7 +3096,7 @@ class Gobnilp(Model):
         if self.between(self._stage,'MIP solution',end):
             # no MIP solution yet (or we wish to throw away existing solution(s)), so reset and solve the MIP instance
             self.reset()                        # in case we had a previous solution to throw away
-            self.optimize()
+            self.gobnilp_optimize()
             self._stage = 'MIP solution'        # 'MIP solution' just means solving has stopped
 
         if self.between(self._stage,'BN(s)',end):
