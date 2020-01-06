@@ -27,7 +27,8 @@ The CPDAG class
 
 .. autoclass:: pygobnilp.gobnilp.CPDAG
    :members:	       
-
+   :show-inheritance:
+      
 The MN class
 ------------
 
@@ -89,7 +90,8 @@ Functions in the gobnilp module
 -------------------------------
 
 .. automodule:: pygobnilp.gobnilp
-   :members: from_bnlearn_modelstring, read_local_scores
+   :members: from_bnlearn_modelstring, read_local_scores,
+	     mhs
    
 	       
 Indices and tables

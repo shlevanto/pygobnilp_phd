@@ -77,6 +77,26 @@ warnings.filterwarnings('ignore')
 # utility functions
 
 def mhs(subsets,ground_set = None):
+    '''Return a minimal hitting set for a set of subsets
+
+    A hitting set is a set of elements from the ground set that has non empty intersection
+    with each of the given subsets. A minimal hitting set is a hitting set with minimal cardinality.
+    This function uses Gurobi to solve this NP-hard problem.
+
+    Args:
+     subsets (iter) : The collection of subsets for which the minimal hitting set is sought.
+      These could be, for example, a list of lists of strings where the strings are elements 
+      of the `ground_set`.
+     ground_set (iter) : The ground set: each subset must be a subset of this ground set. If missing 
+      (=None) then the ground set is the union of all the given subsets.
+
+    Raises:
+     ValueError : If Gurobi cannot solve the minimal hitting set problem.
+
+    Returns:
+     list/None : A minimal hitting set which will be a subset of the ground set, or None
+     if there is no hitting set.
+    '''
     if ground_set is None:
         ground_set = set()
         for x in subsets:
@@ -470,27 +490,37 @@ class CPDAG(BN):
     
 class Gobnilp(Model):
     '''Subclass of `the Gurobi Model class 
-    <https://www.gurobi.com/documentation/8.1/refman/py_model.html>`_ specific 
+    <https://www.gurobi.com/documentation/9.0/refman/py_model.html>`_ specific 
     to learning Bayesian networks.
     See documentation for `the Gurobi Model class 
-    <https://www.gurobi.com/documentation/8.1/refman/py_model.html>`_ 
+    <https://www.gurobi.com/documentation/9.0/refman/py_model.html>`_ 
     for all methods not documented here.
     '''
 
-    allowed_user_constypes = [
+    allowed_user_constypes = (
         "forbidden_arrows","forbidden_adjacencies",
         "obligatory_arrows","obligatory_adjacencies",
         "obligatory_ancestors","forbidden_ancestors",
-        "obligatory_conditional_independences"]
+        "obligatory_conditional_independences")
+    '''
+    tuple: A tuple of strings giving the names of the functions users
+     can define to effect constraints.
+    '''
 
     # each stage indicates what is available at that stage
     stages = (
         'no data', 'data',  'local scores',
         'MIP model', 'MIP solution', 'BN(s)',
         'CPDAG(s)', 'output shown', 'output written')
+    '''
+    tuple: A tuple of strings giving Gobnilp's stages of learning (in order).
+    '''
 
     stages_set = frozenset(stages)
-    
+    '''
+    frozenset: The set of Gobnilp's stages of learning.
+    '''
+
     stage_index = {stage:i for i, stage in enumerate(stages)}
 
     def between(self,stage1,stage2,stage3):
@@ -2210,7 +2240,7 @@ class Gobnilp(Model):
         Args:
          lazy(int): Controls the 'laziness' of these constraints by settng the
           Lazy attribute of the constraints.         
-          See `the Gurobi documentation <https://www.gurobi.com/documentation/8.1/refman/lazy.html>`_
+          See `the Gurobi documentation <https://www.gurobi.com/documentation/9.0/refman/lazy.html>`_
         '''
         n = 0
         total_order = self.total_order
