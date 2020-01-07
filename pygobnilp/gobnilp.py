@@ -28,6 +28,9 @@ import sys
 from math import log
 import warnings
 
+from scipy.sparse.csgraph import floyd_warshall
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph._shortest_path import NegativeCycleError
 try:
     from gurobipy import Model, LinExpr, GRB
 except ImportError as e:
@@ -2848,8 +2851,69 @@ class Gobnilp(Model):
             else:
                 self.cbLazy(lexpr, GRB.LESS_EQUAL, rhs)
             #self._vanilla_cons(cutting,frozenset(cluster))
+        #self._find_weighted_cycles(cutting)
         return True
 
+    def _find_weighted_cycles(self,cutting):
+        data = []
+        row = []
+        col = []
+        for i, pa in enumerate(self.bn_variables):
+            for j, ch in enumerate(self.bn_variables):
+                if (pa,ch) in self.arrow:
+                    row.append(i)
+                    col.append(j)
+                    if cutting:
+                        val = 1 - self.cbGetNodeRel(self.arrow[pa,ch])
+                    else:
+                        val = 1 - self.cbGetSolution(self.arrow[pa,ch])
+                    data.append(max(min(val,1),0)) # deal with numerical problems
+        csrgraph = csr_matrix((data,(row,col)),shape=(self.n,self.n))
+        dist_matrix, predecessors = floyd_warshall(csrgraph, return_predecessors=True)
+        shortest_cycle_length = self.n ** 2
+        for i in range(self.n):
+            for j in range(i+1,self.n):
+                l = dist_matrix[i,j] + dist_matrix[j,i]
+                if l < shortest_cycle_length:
+                    besti = i
+                    bestj = j
+                    shortest_cycle_length = l
+        print('Shortest cycle includes {0} and {1} and has length {2}'.format(besti,bestj,shortest_cycle_length))
+        x = bestj
+        path1 = [bestj]
+        while x != besti:
+            x = predecessors[besti,x]
+            path1.append(x)
+        path1.reverse()
+        print('Shortest path from {0} to {1} is {2}'.format(besti,bestj,path1))
+        for i, x in enumerate(path1[1:]):
+            print('Dist between {0} and {1} is {2}'.format(path1[i],x,dist_matrix[path1[i],x]))
+        
+        x = besti
+        path2 = [besti]
+        while x != bestj:
+            x = predecessors[bestj,x]
+            path2.append(x)
+        path2.reverse()
+        print('Shortest path from {1} to {0} is {2}'.format(besti,bestj,path2))
+        for i, x in enumerate(path2[1:]):
+            print('Dist between {0} and {1} is {2}'.format(path2[i],x,dist_matrix[path2[i],x]))
+
+        cycle = path1 + path2[1:]
+        print('Cycle is {0} with {1} arrows'.format(cycle,len(cycle)-1))
+        vs = []
+        for i, node in enumerate(cycle[1:]):
+            vs.append(self.arrow[self.bn_variables[cycle[i]],self.bn_variables[node]])
+        vals = []
+        for v in vs:
+            if cutting:
+                vals.append(self.cbGetNodeRel(v))
+            else:
+                vals.append(self.cbGetSolution(v))
+        print('Inequality would be that these {0} with vals {1} sum to below {2}'.format(vs,vals,len(vs)-1))
+        #print(dist_matrix)
+        #print(predecessors)
+    
     def _process_user_constraints(self):
         for (pa, ch) in self.forbidden_arrows:
             try:
