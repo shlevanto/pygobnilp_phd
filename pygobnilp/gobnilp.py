@@ -954,6 +954,8 @@ class Gobnilp(Model):
         self._adding_cluster_cuts = None
         self._adding_matroid_cuts = None
 
+        self._enforcing_cycle_constraints = None
+        
         # attributes for one dag per mec constraint
         self._one_dag_per_MEC = None
         self._MEC_constraint_dynamic = None
@@ -2088,7 +2090,8 @@ class Gobnilp(Model):
                             childs.add(x)
                             vs.append(fv)
                 if len(childs) > 2 and len(vs) > 2:
-                    self.addConstr(LinExpr([1.0] * len(vs),vs) <= 2)
+                    constr = self.addConstr(LinExpr([1.0] * len(vs),vs) <= 2)
+                    constr.Lazy = 3
                     n += 1
         if self._verbose:
             print('%d 4B constraints posted' % n, file=sys.stderr)  
@@ -2366,7 +2369,16 @@ class Gobnilp(Model):
                 n += 1
         if self._verbose:
             print('%d constraints ruling out immoralities declared' % n, file=sys.stderr)
+            
+    def add_constraints_cycles(self):
+        '''Adds cycle constraints (on arrow variables)
+        '''
+        self._enforcing_cycle_constraints = True
+        self.Params.LazyConstraints = 1
+        if self._verbose:
+            print('(Lazy) "cycle" constraints in use', file=sys.stderr)
 
+            
     def add_constraints_clusters(self,cluster_cuts=True,matroid_cuts=False,matroid_constraints=False):
         '''Adds cluster constraints
 
@@ -2416,6 +2428,7 @@ class Gobnilp(Model):
         #self.add_constraints_arrow_total_order()
         #self.add_constraints_total_order()
         self.add_constraints_clusters()
+        #self.add_constraints_cycles()
         #self.add_constraints_sumgen()
         #self.add_constraints_gen_arrow_indicator()
         #self.add_constraints_gendiff()
@@ -2447,10 +2460,17 @@ class Gobnilp(Model):
                 self._last_bound = current_bound
             
             if self._adding_cluster_cuts:
-                self._subip(cutting = True,max_cluster_size=max_cluster_size)
+                cluster_res = self._subip(cutting = True,max_cluster_size=max_cluster_size)
                 self._user_cuts_rounds_count += 1
             if self._adding_matroid_cuts:
                 self._matroid_subip(cutting = True)
+
+            if self._enforcing_cycle_constraints:
+                self._find_weighted_cycles(cutting=True)
+
+            #if not cluster_res:
+            #    self._4bsubip(cutting=True)
+            
         elif where == GRB.Callback.MIPSOL:
 
             # optionally don't look for constraints if this has already been done
@@ -2470,6 +2490,9 @@ class Gobnilp(Model):
                 self._matroid_subip(cutting = False)
             if is_a_dag and self._one_dag_per_MEC == True:
                 self._enforce_MEC_representative()
+            if self._enforcing_cycle_constraints:
+                self._find_weighted_cycles(cutting=False)
+            #self._4bsubip(cutting=False)
 
     def _enforce_lazy_user_constraints(self):
         # first get representation of the DAG as a gobnilp.BN object
@@ -2759,7 +2782,98 @@ class Gobnilp(Model):
         else:
             self.cbLazy(lexpr, GRB.GREATER_EQUAL, rhs)
 
-        
+    def _4bsubip(self,cutting):
+        '''
+        Sub-IP for finding 4B cuts
+
+        Matroid cut for matroid with circuits: {a,b,c}, {a,b,d}, {c,d}
+        '''
+        if cutting:
+            fv_vals = self.cbGetNodeRel(self.family_list)
+        else:
+            fv_vals = self.cbGetSolution(self.family_list)
+        subip = Model("4Bsubip")
+        subip.Params.OutputFlag = 0
+        subip.ModelSense = -1
+        subip.Params.PoolSolutions = 100
+        subip.Params.PoolSearchMode = 2
+        subip.Params.Cutoff = 2.1
+        if cutting:
+            subip.Params.TimeLimit = self._subip_cutting_timelimit
+        abcd = {}
+        cd = {}
+        sub_fvs = {}
+        for v in self.bn_variables:
+            abcd[v] = subip.addVar(vtype=GRB.BINARY) # indicates being in {a,b,c,d}
+            cd[v] = subip.addVar(vtype=GRB.BINARY)   # indicates being in {c,d}
+            sub_fvs[v] = {}
+        child_list = self.child
+        parentset_list = self.parents
+        for i, relval in enumerate(fv_vals):
+            if relval > 0:
+                child = child_list[i]
+                parentset = parentset_list[i]
+                v = subip.addVar(vtype=GRB.CONTINUOUS,obj=relval,lb=0,ub=1)
+                try:
+                    sub_fvs[child][parentset] = v
+                except KeyError:
+                    sub_fvs[child] = {parentset:v}
+        subip.update()
+        subip.addConstr(LinExpr([1]*len(abcd),list(abcd.values())), GRB.EQUAL, 4) # |{a,b,c,d}| = 4
+        subip.addConstr(LinExpr([1]*len(cd),list(cd.values())), GRB.EQUAL, 2)     # |{c,d}| = w
+        for v, cdvar in cd.items():
+            subip.addConstr(cdvar <= abcd[v]) # v in {c,d} => v in {a,b,c,d}
+        for child, parent_dict in sub_fvs.items():
+            for parentset, fv in parent_dict.items():
+                subip.addConstr(fv <= abcd[child])
+                ok1 = [cd[v] for v in parentset]
+                ok2 = [abcd[v] for v in parentset]
+                npa = len(parentset)
+                # if cd[child] then for fv to be non-zero either one of the parents is in cd, or two not in cd
+                subip.addConstr(2 * fv + 2 * cd[child] <= 2 + LinExpr([1]*(npa*2),ok1+ok2))
+                # if not cd[child] then for fv to be non-zero then one of the parents is not in cd
+                subip.addConstr(fv <= cd[child] + LinExpr([1]*npa+[-1]*npa,ok2+ok1))
+                # if not cd[child] then for fv to be non-zero then one of the parents is in cd
+                subip.addConstr(fv <= cd[child] + LinExpr([1]*npa,ok1))
+        subip.optimize()
+        # if no 4B constraint found ...
+        if subip.Status == GRB.CUTOFF:
+            return False
+
+        if cutting:
+            # add all found cuts
+            nsols = subip.Solcount
+        else:
+            # only add one constraint
+            nsols = 1
+        family = self.family
+        #print('Cutting = ', cutting,'Solutions found', nsols)
+        for i in range(nsols):
+            subip.Params.SolutionNumber = i
+            abcd_set = set()
+            cd_set = set()
+            for v, yv in list(abcd.items()):
+                if yv.Xn > 0.5:
+                    abcd_set.add(v)
+                if cd[v].Xn > 0.5:
+                    cd_set.add(v)
+            diff = abcd_set - cd_set
+            cutfvs = []
+            for child in cd_set:
+                for parent_set, fv in list(family[child].items()):
+                    if not parent_set.isdisjoint(cd_set) or len(parent_set & diff) > 1:
+                        cutfvs.append(fv)
+            for child in diff:
+                for parent_set, fv in list(family[child].items()):
+                    if len(parent_set & diff) > 1:
+                        cutfvs.append(fv)
+            if cutting:
+                self.cbCut(LinExpr([1]*len(cutfvs),cutfvs), GRB.LESS_EQUAL, 2)
+            else:
+                self.cbLazy(LinExpr([1]*len(cutfvs),cutfvs), GRB.LESS_EQUAL, 2)
+            print('added 4B cut for {0}/{1} val is {2}'.format(abcd_set,cd_set,subip.PoolObjVal))
+        return True
+                        
     def _subip(self,cutting,max_cluster_size=None):
         '''Sub-IP for finding cluster cuts which separate the solution
         to the current linear relaxation.
@@ -2791,7 +2905,7 @@ class Gobnilp(Model):
             if relval > 0:
                 child = child_list[i]
                 parentset = parentset_list[i]
-                #print child, parentset
+                #v = subip.addVar(vtype=GRB.CONTINUOUS,obj=relval,lb=0,ub=1)
                 v = subip.addVar(vtype=GRB.BINARY,obj=relval)
                 try:
                     sub_fvs[child][parentset] = v
@@ -2805,6 +2919,11 @@ class Gobnilp(Model):
             for parentset, fv in list(parent_dict.items()):
                 subip.addConstr(fv, GRB.LESS_EQUAL, y[child])
                 subip.addConstr(fv, GRB.LESS_EQUAL, LinExpr([(1,y[parent]) for parent in parentset]))
+                # to rule out duplicate clusters
+                #npa = len(parentset)
+                #subip.addConstr(LinExpr([npa]+[1]*npa,[y[child]]+[y[parent] for parent in parentset]),
+                #                GRB.LESS_EQUAL,
+                #                npa + npa*fv)
         subip.optimize()
 
         # if no cluster constraint found ...
@@ -2819,6 +2938,7 @@ class Gobnilp(Model):
             nsols = 1
         family = self.family
         #print('Cutting = ', cutting,'Solutions found', nsols)
+        seen_clusters = set()
         for i in range(nsols):
             subip.Params.SolutionNumber = i
             cluster = []
@@ -2827,6 +2947,11 @@ class Gobnilp(Model):
                     cluster.append(v)
             #print('Cluster', cluster)
             cluster_set = frozenset(cluster)
+            if cluster_set in seen_clusters:
+                #print('repeat')
+                continue
+            else:
+                seen_clusters.add(cluster_set)
             rhs = len(cluster)-1
             lexpr = LinExpr()
             for child in cluster:
@@ -2878,16 +3003,16 @@ class Gobnilp(Model):
                     besti = i
                     bestj = j
                     shortest_cycle_length = l
-        print('Shortest cycle includes {0} and {1} and has length {2}'.format(besti,bestj,shortest_cycle_length))
+        #print('Shortest cycle includes {0} and {1} and has length {2}'.format(besti,bestj,shortest_cycle_length))
         x = bestj
         path1 = [bestj]
         while x != besti:
             x = predecessors[besti,x]
             path1.append(x)
         path1.reverse()
-        print('Shortest path from {0} to {1} is {2}'.format(besti,bestj,path1))
-        for i, x in enumerate(path1[1:]):
-            print('Dist between {0} and {1} is {2}'.format(path1[i],x,dist_matrix[path1[i],x]))
+        #print('Shortest path from {0} to {1} is {2}'.format(besti,bestj,path1))
+        #for i, x in enumerate(path1[1:]):
+            #print('Dist between {0} and {1} is {2}'.format(path1[i],x,dist_matrix[path1[i],x]))
         
         x = besti
         path2 = [besti]
@@ -2895,12 +3020,12 @@ class Gobnilp(Model):
             x = predecessors[bestj,x]
             path2.append(x)
         path2.reverse()
-        print('Shortest path from {1} to {0} is {2}'.format(besti,bestj,path2))
-        for i, x in enumerate(path2[1:]):
-            print('Dist between {0} and {1} is {2}'.format(path2[i],x,dist_matrix[path2[i],x]))
+        #print('Shortest path from {1} to {0} is {2}'.format(besti,bestj,path2))
+        #for i, x in enumerate(path2[1:]):
+            #print('Dist between {0} and {1} is {2}'.format(path2[i],x,dist_matrix[path2[i],x]))
 
         cycle = path1 + path2[1:]
-        print('Cycle is {0} with {1} arrows'.format(cycle,len(cycle)-1))
+        #print('Cycle is {0} with {1} arrows'.format(cycle,len(cycle)-1))
         vs = []
         for i, node in enumerate(cycle[1:]):
             vs.append(self.arrow[self.bn_variables[cycle[i]],self.bn_variables[node]])
@@ -2910,7 +3035,15 @@ class Gobnilp(Model):
                 vals.append(self.cbGetNodeRel(v))
             else:
                 vals.append(self.cbGetSolution(v))
-        print('Inequality would be that these {0} with vals {1} sum to below {2}'.format(vs,vals,len(vs)-1))
+        #print('Inequality would be that these {0} with vals {1} sum to below {2}'.format(vs,vals,len(vs)-1))
+        if sum(vals) > len(vs) - 1:
+            lhs = LinExpr([1]*len(vs),vs)
+            rhs = len(vs) - 1
+            if cutting:
+                self.cbCut(lhs, GRB.LESS_EQUAL, rhs)
+            else:
+                self.cbLazy(lhs, GRB.LESS_EQUAL, rhs)
+
         #print(dist_matrix)
         #print(predecessors)
     
