@@ -439,7 +439,7 @@ class BN(nx.DiGraph):
         return cpdag
 
 class CPDAG(BN):
-    '''Subclass of :py:class:`gobnilp.BN <gobnilp.BN>` which is itself a subclass of
+    '''Subclass of :py:class:`pygobnilp.gobnilp.BN <pygobnilp.gobnilp.BN>` which is itself a subclass of
     `networkx.DiGraph <https://networkx.github.io/documentation/stable/reference/classes/digraph.html>`_. 
     See documentation for those classes for all methods not documented here.
     '''
@@ -527,13 +527,34 @@ class Gobnilp(Model):
     stage_index = {stage:i for i, stage in enumerate(stages)}
 
     def between(self,stage1,stage2,stage3):
-        '''Is stage2 strictly after stage1 but not strictly after stage 3
+        '''Is stage2 strictly after stage1 but not strictly after stage 3?
+
+        Args:
+         stage1 (str): A Gobnilp learning stage
+         stage2 (str): A Gobnilp learning stage
+         stage3 (str): A Gobnilp learning stage
+
+        Raises:
+         KeyError: If any of the arguments are not the names of Gobnilp learning stages
+
+        Returns:
+         bool : Whether `stage2` is strictly after `stage1` but not strictly after `stage3`
         '''
         return (self.stage_index[stage1] < self.stage_index[stage2] and
                 self.stage_index[stage2] <= self.stage_index[stage3])
 
     def before(self,stage1,stage2):
-        '''Is stage2 strictly after stage1
+        '''Is stage1 strictly after stage2?
+
+        Args:
+         stage1 (str): A Gobnilp learning stage
+         stage2 (str): A Gobnilp learning stage
+
+        Raises:
+         KeyError: If any of the arguments are not the names of Gobnilp learning stages
+
+        Returns:
+         bool : Whether `stage1` is strictly before `stage2`
         '''
         return self.stage_index[stage1] < self.stage_index[stage2]
 
@@ -706,9 +727,9 @@ class Gobnilp(Model):
         (if these variables have been created, by default they are)
 
         See also:
-            :py:meth:`get_family_index <gobnilp.Gobnilp.get_family_index>`,
-            :py:meth:`child <gobnilp.Gobnilp.child>`,
-            :py:meth:`parents <gobnilp.Gobnilp.parents>`
+            :py:meth:`get_family_index <pygobnilp.gobnilp.Gobnilp.get_family_index>`,
+            :py:meth:`child <pygobnilp.gobnilp.Gobnilp.child>`,
+            :py:meth:`parents <pygobnilp.gobnilp.Gobnilp.parents>`
 
         Raises:
          Gobnilp.StageError: If no family variables have been created
@@ -775,11 +796,11 @@ class Gobnilp(Model):
     def generation(self):
         ''' dict: Dictionary of generation variables
         (if these variables have been created by calling
-        :py:meth:`add_variables_gen <gobnilp.Gobnilp.add_variables_gen>`)
+        :py:meth:`add_variables_gen <pygobnilp.gobnilp.Gobnilp.add_variables_gen>`)
 
         Assuming appropriate constraints have been added, by,
         for example, calling the method 
-        :py:meth:`add_constraints_gen_arrow_indicator <gobnilp.Gobnilp.add_constraints_gen_arrow_indicator>`,
+        :py:meth:`add_constraints_gen_arrow_indicator <pygobnilp.gobnilp.Gobnilp.add_constraints_gen_arrow_indicator>`,
         then ``generation[v1]`` is the generation number for ``v1``.
 
         See Section 3.1.2 of `Maximum likelihood pedigree reconstruction using integer 
@@ -790,8 +811,8 @@ class Gobnilp(Model):
          Gobnilp.StageError: If no generation variables have been created
 
         See also:
-         * :py:meth:`add_variables_gen <gobnilp.Gobnilp.add_variables_gen>`
-         * :py:meth:`add_constraints_gen_arrow_indicator <gobnilp.Gobnilp.add_constraints_gen_arrow_indicator>`
+         * :py:meth:`add_variables_gen <pygobnilp.gobnilp.Gobnilp.add_variables_gen>`
+         * :py:meth:`add_constraints_gen_arrow_indicator <pygobnilp.gobnilp.Gobnilp.add_constraints_gen_arrow_indicator>`
         '''
         return self._getmipvars('generation')
 
@@ -799,19 +820,19 @@ class Gobnilp(Model):
     def generation_difference(self):
         ''' dict: Dictionary of generation difference variables
         (if these variables have been created by calling
-        :py:meth:`add_variables_gendiff <gobnilp.Gobnilp.add_variables_gendiff>`)
+        :py:meth:`add_variables_gendiff <pygobnilp.gobnilp.Gobnilp.add_variables_gendiff>`)
 
         Assuming the appropriate constraints have been added, by, for example,
         calling the method
-        :py:meth:`add_constraints_gendiff <gobnilp.Gobnilp.add_constraints_gendiff>`,
+        :py:meth:`add_constraints_gendiff <pygobnilp.gobnilp.Gobnilp.add_constraints_gendiff>`,
         then ``generation_difference[v1,v2] = generation[v1] - generation[v2]``
 
         Raises:
          Gobnilp.StageError: If no generation difference variables have been created
 
         See also:
-         * :py:meth:`add_variables_gendiff <gobnilp.Gobnilp.add_variables_gendiff>`
-         * :py:meth:`add_constraints_gendiff <gobnilp.Gobnilp.add_constraints_gendiff>`
+         * :py:meth:`add_variables_gendiff <pygobnilp.gobnilp.Gobnilp.add_variables_gendiff>`
+         * :py:meth:`add_constraints_gendiff <pygobnilp.gobnilp.Gobnilp.add_constraints_gendiff>`
         '''
         return self._getmipvars('generation_difference')
 
@@ -836,9 +857,9 @@ class Gobnilp(Model):
         ``get_family_index[child][parents]`` is the index for the given family.
 
         See also:
-            :py:meth:`child <gobnilp.Gobnilp.child>` and 
-            :py:meth:`parents <gobnilp.Gobnilp.parents>` and 
-            :py:meth:`family_list <gobnilp.Gobnilp.family_list>`.
+            :py:meth:`child <pygobnilp.gobnilp.Gobnilp.child>` and 
+            :py:meth:`parents <pygobnilp.gobnilp.Gobnilp.parents>` and 
+            :py:meth:`family_list <pygobnilp.gobnilp.Gobnilp.family_list>`.
         '''
         return self._getidxdicts('get_family_index')
 
@@ -848,9 +869,9 @@ class Gobnilp(Model):
         '''list: ``child[i]`` is the child in the family with index ``i``.
 
         See also:
-            :py:meth:`get_family_index <gobnilp.Gobnilp.get_family_index>`,
-            :py:meth:`parents <gobnilp.Gobnilp.parents>` and 
-            :py:meth:`family_list <gobnilp.Gobnilp.family_list>`.
+            :py:meth:`get_family_index <pygobnilp.gobnilp.Gobnilp.get_family_index>`,
+            :py:meth:`parents <pygobnilp.gobnilp.Gobnilp.parents>` and 
+            :py:meth:`family_list <pygobnilp.gobnilp.Gobnilp.family_list>`.
         '''
         return self._getidxdicts('child')
 
@@ -861,38 +882,75 @@ class Gobnilp(Model):
         The parent set is a frozenset.
 
         See also:
-            :py:meth:`get_family_index <gobnilp.Gobnilp.get_family_index>`,
-            :py:meth:`child <gobnilp.Gobnilp.child>`,
-            :py:meth:`family_list <gobnilp.Gobnilp.family_list>`
+            :py:meth:`get_family_index <pygobnilp.gobnilp.Gobnilp.get_family_index>`,
+            :py:meth:`child <pygobnilp.gobnilp.Gobnilp.child>`,
+            :py:meth:`family_list <pygobnilp.gobnilp.Gobnilp.family_list>`
         '''
         return self._getidxdicts('parents')
 
     @property
     def forbidden_arrows(self):
+        '''set: If `(u,v)` is included then an arrow from `u` to `v` is forbidden.
+
+        See also:
+            :py:meth:`add_forbidden_arrow <pygobnilp.gobnilp.Gobnilp.add_forbidden_arrow>`
+        '''
         return self._forbidden_arrows
 
     @property
     def obligatory_arrows(self):
+        '''set: If `(u,v)` is included then an arrow from `u` to `v` is obligatory.
+        
+        See also:
+            :py:meth:`add_obligatory_arrow <pygobnilp.gobnilp.Gobnilp.add_obligatory_arrow>`
+        '''
         return self._obligatory_arrows
 
     @property
     def forbidden_adjacencies(self):
+        '''set: If `{u,v}` is included then an adjacency between `u` to `v` is forbidden.
+        
+        See also:
+            :py:meth:`add_forbidden_adjacency <pygobnilp.gobnilp.Gobnilp.add_forbidden_adjacency>`
+        '''
         return self._forbidden_adjacencies
 
     @property
     def obligatory_adjacencies(self):
+        '''set: If `{u,v}` is included then an adjacency between `u` to `v` is obligatory.
+        
+        See also:
+            :py:meth:`add_obligatory_adjacency <pygobnilp.gobnilp.Gobnilp.add_obligatory_adjacency>`
+        '''
         return self._obligatory_adjacencies
 
     @property
     def forbidden_ancestors(self):
+        '''set: If `(u,v)` is included then an directed path from `u` to `v` is forbidden.
+        
+        See also:
+            :py:meth:`add_forbidden_ancestors <pygobnilp.gobnilp.Gobnilp.add_forbidden_ancestors>`
+        '''
         return self._forbidden_ancestors
 
     @property
     def obligatory_ancestors(self):
+        '''set: If `(u,v)` is included then an directed path from `u` to `v` is obligatory.
+        
+        See also:
+            :py:meth:`add_obligatory_ancestors <pygobnilp.gobnilp.Gobnilp.add_obligatory_ancestors>`
+        '''
+
         return self._obligatory_ancestors
 
     @property
     def obligatory_conditional_independences(self):
+        '''set: If `(a,b,s)` is included, where each is a frozenset, then each BN variable in `a` must be independent of each BN variable in `b` conditional on `s`.
+        
+        See also:
+            :py:meth:`add_obligatory_conditional_independence <pygobnilp.gobnilp.Gobnilp.add_obligatory_conditional_independence>`,
+            :py:meth:`add_obligatory_independence <pygobnilp.gobnilp.Gobnilp.add_obligatory_independence>`
+        '''
         return self._obligatory_conditional_independences
 
     
@@ -987,6 +1045,12 @@ class Gobnilp(Model):
             raise Gobnilp.StageError(self.stage,"No {0} variables in the model yet.".format(vtype))
 
     def add_forbidden_arrow(self,u,v):
+        '''Add constraint that there can be no arrow from `u` to `v`
+        
+        Args:
+         u (str) : Head of arrow
+         v (str) : Tail of arrow
+        '''
         if (u,v) in self._forbidden_arrows:
             return
         if u == v:
@@ -1159,12 +1223,12 @@ class Gobnilp(Model):
         See also:
             Note that the BN variable, its parents and the binary MIP
             variable for a family can be recovered from its index using the methods
-            :py:meth:`child <gobnilp.Gobnilp.child>`,
-            :py:meth:`parents <gobnilp.Gobnilp.parents>` and 
-            :py:meth:`family_variable <gobnilp.Gobnilp.family_variable>`,
+            :py:meth:`child <pygobnilp.gobnilp.Gobnilp.child>`,
+            :py:meth:`parents <pygobnilp.gobnilp.Gobnilp.parents>` and 
+            :py:meth:`family_variable <pygobnilp.gobnilp.Gobnilp.family_variable>`,
             respectively.
 
-            A rough 'inverse' of this method is :py:meth:`mec2dag <gobnilp.Gobnilp.mec2dag>`.
+            A rough 'inverse' of this method is :py:meth:`mec2dag <pygobnilp.gobnilp.Gobnilp.mec2dag>`.
         '''
         c = set()
         child_list = self.child
@@ -1195,7 +1259,7 @@ class Gobnilp(Model):
             list/None: The DAG represented by a list of family indices, or None if the required families are not represented.
 
         See also:
-            A rough 'inverse' of this method is :py:meth:`dag2mec <gobnilp.Gobnilp.dag2mec>`.
+            A rough 'inverse' of this method is :py:meth:`dag2mec <pygobnilp.gobnilp.Gobnilp.dag2mec>`.
         '''
         fvs = []
         if vs is None:
@@ -1452,8 +1516,8 @@ class Gobnilp(Model):
         '''Read local scores from a dictionary.
 
         Once this method has been run, methods for adding MIP variables, such as
-        :py:meth:`add_variables_family <gobnilp.Gobnilp.add_variables_family>` and 
-        :py:meth:`add_basic_variables <gobnilp.Gobnilp.add_basic_variables>`, can be used.
+        :py:meth:`add_variables_family <pygobnilp.gobnilp.Gobnilp.add_variables_family>` and 
+        :py:meth:`add_basic_variables <pygobnilp.gobnilp.Gobnilp.add_basic_variables>`, can be used.
 
         Args:
             local_scores (dict) : Dictionary containing local scores.
@@ -1497,7 +1561,7 @@ class Gobnilp(Model):
             dynamic (bool): If True then which DAG is feasible for each Markov equivalence
              class is arbitrary (it will be the first one Gurobi comes across). If false
              then the representative DAG is fixed 
-             (and is determined by the method :py:meth:`dec2mag <gobnilp.Gobnilp.mec2dag>`).
+             (and is determined by the method :py:meth:`dec2mag <pygobnilp.gobnilp.Gobnilp.mec2dag>`).
             careful (bool): If True then all the lazy constraints are stored (not just posted) 
              to ensure that new solutions satisfy them. (The value for `careful` is ignored if
              `dynamic` is False.)
@@ -1541,7 +1605,7 @@ class Gobnilp(Model):
         i.e. when we have a solution and where it is guaranteed that the solution is a DAG.
 
         This method should only be called if 
-        :py:meth:`add_constraints_one_dag_per_MEC <gobnilp.Gobnilp.add_constraints_one_dag_per_MEC>`
+        :py:meth:`add_constraints_one_dag_per_MEC <pygobnilp.gobnilp.Gobnilp.add_constraints_one_dag_per_MEC>`
         has previously been called to add the constraint. The enforcement method depends on how the ``dynamic``
         and ``careful`` flags were set when adding the constraint.
 
@@ -1554,7 +1618,7 @@ class Gobnilp(Model):
         this did not prevent the current solution being proposed. In this case the earlier
         DAG is set (again) to be the distinguished representative.
 
-        If ``dynamic = False``, the DAG defined by :py:meth:`dag2mec <gobnilp.Gobnilp.dag2mec>` is the 
+        If ``dynamic = False``, the DAG defined by :py:meth:`dag2mec <pygobnilp.gobnilp.Gobnilp.dag2mec>` is the 
         distinguished representative of the Markov equivalence class for 
         the current solution. In this case the current solution will be cut off unless it happens to be this
         distinguished representative.
@@ -1575,7 +1639,7 @@ class Gobnilp(Model):
         DAG in the input Markov equivalence class `mec`.
 
         If ``dag==None`` then the distinguished representative for `mec`
-        generated by the method :py:meth:`mec2dag <gobnilp.Gobnilp.mec2dag>` is used.
+        generated by the method :py:meth:`mec2dag <pygobnilp.gobnilp.Gobnilp.mec2dag>` is used.
 
         This method should only be called from within a callback where we have a solution,
         i.e. where ``where == GRB.Callback.MIPSOL``.
@@ -1740,7 +1804,7 @@ class Gobnilp(Model):
 
         This method should only be called after data (or local scores) have been read
         in using, for example, a method such as 
-        :py:meth:`input_discrete_data <gobnilp.Gobnilp.input_discrete_data>`
+        :py:meth:`input_discrete_data <pygobnilp.gobnilp.Gobnilp.input_discrete_data>`
 
         Args:
             branch_priority (int): The Gurobi branching priority for the 
@@ -1809,7 +1873,7 @@ class Gobnilp(Model):
         there is an arrow from ``pa`` to ``ch`` in a learned BN.
 
         To connect these variables appropriately to family variables it is necessary to 
-        call :py:meth:`add_constraints_arrow_family <gobnilp.Gobnilp.add_constraints_arrow_family>`.
+        call :py:meth:`add_constraints_arrow_family <pygobnilp.gobnilp.Gobnilp.add_constraints_arrow_family>`.
 
         All these variables are given objective value 0. (This can be overridden using the ``Obj`` attribute
         of the variable.)
@@ -1837,7 +1901,7 @@ class Gobnilp(Model):
         before children in the total order.
 
         To connect these variables appropriately to arrow variables it is necessary to 
-        call :py:meth:`add_constraints_arrow_total_order <gobnilp.Gobnilp.add_constraints_arrow_total_order>`.
+        call :py:meth:`add_constraints_arrow_total_order <pygobnilp.gobnilp.Gobnilp.add_constraints_arrow_total_order>`.
 
         All these variables are given objective value 0. (This can be overridden using the ``Obj`` attribute
         of the variable.)
@@ -1865,7 +1929,7 @@ class Gobnilp(Model):
         there is an arrow from ``v1`` to ``v2`` or an arrow from ``v2`` to ``v1``.
 
         To connect these variables appropriately to arrow variables it is necessary to 
-        call :py:meth:`add_constraints_arrow_adjacency <gobnilp.Gobnilp.add_constraints_arrow_adjacency>`.
+        call :py:meth:`add_constraints_arrow_adjacency <pygobnilp.gobnilp.Gobnilp.add_constraints_arrow_adjacency>`.
 
         All these variables are given objective value 0. (This can be overridden using the ``Obj`` attribute
         of the variable.)
@@ -1911,10 +1975,10 @@ class Gobnilp(Model):
         has a generation number stricty greater than any of its parents.
 
         To connect these variables appropriately to arrow variables it is necessary to 
-        call :py:meth:`add_constraints_gen_arrow_indicator <gobnilp.Gobnilp.add_constraints_gen_arrow_indicator>`.
+        call :py:meth:`add_constraints_gen_arrow_indicator <pygobnilp.gobnilp.Gobnilp.add_constraints_gen_arrow_indicator>`.
 
         To set the sum of all generation numbers to n*(n-1)/2 use 
-        :py:meth:`add_constraints_sumgen <gobnilp.Gobnilp.add_constraints_sumgen>`.
+        :py:meth:`add_constraints_sumgen <pygobnilp.gobnilp.Gobnilp.add_constraints_sumgen>`.
 
         All these variables are given objective value 0. (This can be overridden using the ``Obj`` attribute
         of the variable.)
@@ -1944,7 +2008,7 @@ class Gobnilp(Model):
         between distinct BN variables
 
         Generation and generation difference variables are connected appropriately with 
-        :py:meth:`add_constraints_gendiff <gobnilp.Gobnilp.add_constraints_gendiff>`.
+        :py:meth:`add_constraints_gendiff <pygobnilp.gobnilp.Gobnilp.add_constraints_gendiff>`.
 
         All these variables are given objective value 0. (This can be overridden using the ``Obj`` attribute
         of the variable.)
@@ -1980,11 +2044,11 @@ class Gobnilp(Model):
         and thus ultimately to the *generation* variables, then each BN variable will have
         a different generation number.
 
-        Calling :py:meth:`add_constraints_absgendiff <gobnilp.Gobnilp.add_constraints_absgendiff>` ensure that
+        Calling :py:meth:`add_constraints_absgendiff <pygobnilp.gobnilp.Gobnilp.add_constraints_absgendiff>` ensure that
         these variables indeed are equal to the absolute values of generation difference variables.
 
-        Generation variables are added with :py:meth:`add_variables_gen <gobnilp.Gobnilp.add_variables_gen>`.
-        Generation difference variables are added with :py:meth:`add_variables_gendiff <gobnilp.Gobnilp.add_variables_gendiff>`.
+        Generation variables are added with :py:meth:`add_variables_gen <pygobnilp.gobnilp.Gobnilp.add_variables_gen>`.
+        Generation difference variables are added with :py:meth:`add_variables_gendiff <pygobnilp.gobnilp.Gobnilp.add_variables_gendiff>`.
         See the documentation for these two methods for details of how to add appropriate constraints.
 
         All these variables are given objective value 0. (This can be overridden using the ``Obj`` attribute
@@ -2015,9 +2079,9 @@ class Gobnilp(Model):
 
         Adds the variables added by the following methods:
 
-        * :py:meth:`add_variables_family <gobnilp.Gobnilp.add_variables_family>`
-        * :py:meth:`add_variables_arrow <gobnilp.Gobnilp.add_variables_arrow>`
-        * :py:meth:`add_variables_adjacency <gobnilp.Gobnilp.add_variables_adjacency>`
+        * :py:meth:`add_variables_family <pygobnilp.gobnilp.Gobnilp.add_variables_family>`
+        * :py:meth:`add_variables_arrow <pygobnilp.gobnilp.Gobnilp.add_variables_arrow>`
+        * :py:meth:`add_variables_adjacency <pygobnilp.gobnilp.Gobnilp.add_variables_adjacency>`
 
         Arrow and adjacency variables are given a higher branching priority than family
         variables to encourage a balanced search tree.
@@ -2065,7 +2129,13 @@ class Gobnilp(Model):
 
 
     def add_constraints_4b(self):
-        '''Adds "4B" constraints. See
+        '''Adds "4B" constraints. 
+
+        All possibly useful 4B constraints are created but these are stored 
+        as lazy constraints with a lazy setting of 3 which means that a 4B constraint is pulled into the MIP model only
+        when they cut off the current linear relaxation solution (or integer solution). 
+
+        See
         `Bayesian Network Structure Learning with Integer Programming:
         Polytopes, Facets and Complexity (Cussens et al, JAIR) <https://jair.org/index.php/jair/article/view/11041/26213>`_
         for details
@@ -2403,6 +2473,9 @@ class Gobnilp(Model):
             print('(Lazy) "cluster" constraints in use', file=sys.stderr)
 
     def add_constraints_bests(self):
+        '''Add the constraint that at least one BN varaible has its best scoring parent
+        set selected
+        '''
         best = {}
         for v, pas in self.ordered_parentsets.items():
             best[v] = self.family[v][pas[0]]
@@ -2415,11 +2488,11 @@ class Gobnilp(Model):
 
         Adds the constraints added by the following methods:
 
-        * :py:meth:`add_constraints_oneparentset <gobnilp.Gobnilp.add_constraints_oneparentset>`
-        * :py:meth:`add_constraints_setpacking <gobnilp.Gobnilp.add_constraints_setpacking>`
-        * :py:meth:`add_constraints_arrow_family <gobnilp.Gobnilp.add_constraints_arrow_family>`
-        * :py:meth:`add_constraints_arrow_adjacency <gobnilp.Gobnilp.add_constraints_arrow_adjacency>`
-        * :py:meth:`add_constraints_clusters <gobnilp.Gobnilp.add_constraints_clusters>`
+        * :py:meth:`add_constraints_oneparentset <pygobnilp.gobnilp.Gobnilp.add_constraints_oneparentset>`
+        * :py:meth:`add_constraints_setpacking <pygobnilp.gobnilp.Gobnilp.add_constraints_setpacking>`
+        * :py:meth:`add_constraints_arrow_family <pygobnilp.gobnilp.Gobnilp.add_constraints_arrow_family>`
+        * :py:meth:`add_constraints_arrow_adjacency <pygobnilp.gobnilp.Gobnilp.add_constraints_arrow_adjacency>`
+        * :py:meth:`add_constraints_clusters <pygobnilp.gobnilp.Gobnilp.add_constraints_clusters>`
         '''
         self.add_constraints_oneparentset()
         self.add_constraints_setpacking()
@@ -3092,12 +3165,11 @@ class Gobnilp(Model):
     
     def input_user_conss(self,consfile):
         '''Read user constraints from a Python module and store them
-
-        Allowed user constraints are:
-        ``forbidden_arrows``, ``forbidden_adjacencies``,
-        ``obligatory_arrows``, ``obligatory_adjacencies``,
-        ``obligatory_ancestors``, ``forbidden_ancestors`` and
-        ``obligatory_conditional_independences``
+        
+        If `consfile` is None then this method returns silently.
+        
+        See also:
+           :py:attr:`allowed_use_contypes <pygobnilp.gobnilp.Gobnilp.allowed_user_constypes>`
 
         Such constraints can be read in prior to computation of local
         scores, and can make that computation more efficient
@@ -3136,7 +3208,7 @@ class Gobnilp(Model):
 
     def clear_basic_model(self):
         '''Removes variables and constraints added by 
-            :py:meth:`make_basic_model <gobnilp.Gobnilp.make_basic_model>`.
+            :py:meth:`make_basic_model <pygobnilp.gobnilp.Gobnilp.make_basic_model>`.
         '''
         self.remove(self.getVars())
         self.remove(self.getConstrs())
@@ -3146,8 +3218,8 @@ class Gobnilp(Model):
         '''
         Adds standard variables and constraints to the model, together with any user constraints
 
-        Variables added by :py:meth:`add_basic_variables <gobnilp.Gobnilp.add_basic_variables>`.
-        Constraints added by :py:meth:`add_basic_constraints <gobnilp.Gobnilp.add_basic_constraints>`. 
+        Variables added by :py:meth:`add_basic_variables <pygobnilp.gobnilp.Gobnilp.add_basic_variables>`.
+        Constraints added by :py:meth:`add_basic_constraints <pygobnilp.gobnilp.Gobnilp.add_basic_constraints>`. 
 
         Args:
             nsols (int): Number of BNs to learn
