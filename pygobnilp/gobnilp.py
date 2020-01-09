@@ -2913,8 +2913,8 @@ class Gobnilp(Model):
             if relval > 0:
                 child = child_list[i]
                 parentset = parentset_list[i]
-                #v = subip.addVar(vtype=GRB.CONTINUOUS,obj=relval,lb=0,ub=1)
-                v = subip.addVar(vtype=GRB.BINARY,obj=relval)
+                v = subip.addVar(vtype=GRB.CONTINUOUS,obj=relval,lb=0,ub=1)
+                #v = subip.addVar(vtype=GRB.BINARY,obj=relval)
                 try:
                     sub_fvs[child][parentset] = v
                 except KeyError:
@@ -2946,7 +2946,7 @@ class Gobnilp(Model):
             nsols = 1
         family = self.family
         #print('Cutting = ', cutting,'Solutions found', nsols)
-        seen_clusters = set()
+        #seen_clusters = set()
         for i in range(nsols):
             subip.Params.SolutionNumber = i
             cluster = []
@@ -2955,11 +2955,11 @@ class Gobnilp(Model):
                     cluster.append(v)
             #print('Cluster', cluster)
             cluster_set = frozenset(cluster)
-            if cluster_set in seen_clusters:
-                #print('repeat')
-                continue
-            else:
-                seen_clusters.add(cluster_set)
+            #if cluster_set in seen_clusters:
+            #     #print('repeat')
+            #    continue
+            #else:
+            #    seen_clusters.add(cluster_set)
             rhs = len(cluster)-1
             lexpr = LinExpr()
             for child in cluster:
