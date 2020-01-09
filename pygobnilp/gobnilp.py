@@ -2468,7 +2468,8 @@ class Gobnilp(Model):
             if self._enforcing_cycle_constraints:
                 self._find_weighted_cycles(cutting=True)
 
-            #if not cluster_res:
+            # not helping!
+            #if not cluster_res and self.cbGet(GRB.Callback.MIPNODE_NODCNT) == 0: 
             #    self._4bsubip(cutting=True)
             
         elif where == GRB.Callback.MIPSOL:
@@ -2482,7 +2483,7 @@ class Gobnilp(Model):
             is_a_dag = True
             if self._enforcing_cluster_constraints:
                 #print(self.cbGet(GRB.Callback.MIPSOL_NODCNT))
-                is_a_dag = not self._subip(cutting = False,max_cluster_size=max_cluster_size)
+                is_a_dag = not self._subip(cutting = False) # no max cluster size when enforcing
                 self._user_enforcement_rounds_count += 1
             if is_a_dag:
                 self._enforce_lazy_user_constraints()
@@ -2795,11 +2796,11 @@ class Gobnilp(Model):
         subip = Model("4Bsubip")
         subip.Params.OutputFlag = 0
         subip.ModelSense = -1
-        subip.Params.PoolSolutions = 100
-        subip.Params.PoolSearchMode = 2
+        subip.Params.PoolSolutions = 20
+        subip.Params.PoolSearchMode = 1
         subip.Params.Cutoff = 2.1
-        if cutting:
-            subip.Params.TimeLimit = self._subip_cutting_timelimit
+        #if cutting:
+        #    subip.Params.TimeLimit = self._subip_cutting_timelimit
         abcd = {}
         cd = {}
         sub_fvs = {}
@@ -2848,15 +2849,22 @@ class Gobnilp(Model):
             nsols = 1
         family = self.family
         #print('Cutting = ', cutting,'Solutions found', nsols)
+        seen_before = set()
         for i in range(nsols):
             subip.Params.SolutionNumber = i
-            abcd_set = set()
-            cd_set = set()
+            abcd_list = []
+            cd_list = []
             for v, yv in list(abcd.items()):
                 if yv.Xn > 0.5:
-                    abcd_set.add(v)
+                    abcd_list.append(v)
                 if cd[v].Xn > 0.5:
-                    cd_set.add(v)
+                    cd_list.append(v)
+            abcd_set = frozenset(abcd_list)
+            cd_set = frozenset(cd_list)
+            if (abcd_set, cd_set) in seen_before:
+                continue
+            else:
+                seen_before.add((abcd_set, cd_set))
             diff = abcd_set - cd_set
             cutfvs = []
             for child in cd_set:
@@ -2871,7 +2879,7 @@ class Gobnilp(Model):
                 self.cbCut(LinExpr([1]*len(cutfvs),cutfvs), GRB.LESS_EQUAL, 2)
             else:
                 self.cbLazy(LinExpr([1]*len(cutfvs),cutfvs), GRB.LESS_EQUAL, 2)
-            print('added 4B cut for {0}/{1} val is {2}'.format(abcd_set,cd_set,subip.PoolObjVal))
+            #print('added 4B cut for {0}/{1} val is {2}'.format(abcd_set,cd_set,subip.PoolObjVal))
         return True
                         
     def _subip(self,cutting,max_cluster_size=None):
