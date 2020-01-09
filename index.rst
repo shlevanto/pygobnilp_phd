@@ -34,21 +34,7 @@ The MN class
 
 .. autoclass:: pygobnilp.gobnilp.MN
    :members:
-
-		
-The BDeu class
------------------------------
-
-.. autoclass:: pygobnilp.discrete_scoring.BDeu
-   :members:
-   :show-inheritance:
    
-The BGe class
--------------
-
-.. autoclass:: pygobnilp.continuous_scoring.BGe
-   :members:
-   :show-inheritance:
       
 The DiscreteData class
 -----------------------------
@@ -85,6 +71,27 @@ The AIC class
 .. autoclass:: pygobnilp.discrete_scoring.AIC
    :members:
    :show-inheritance:
+
+The BDeu class
+-----------------------------
+
+.. autoclass:: pygobnilp.discrete_scoring.BDeu
+   :members:
+   :show-inheritance:
+
+The ContinuousData class
+-----------------------------
+
+.. autoclass:: pygobnilp.continuous_scoring.ContinuousData
+   :members:
+
+The BGe class
+-------------
+
+.. autoclass:: pygobnilp.continuous_scoring.BGe
+   :members:
+   :show-inheritance:
+
       
 Functions in the gobnilp module
 -------------------------------

@@ -27,6 +27,8 @@ from itertools import combinations, permutations
 import sys
 from math import log
 import warnings
+import subprocess
+
 
 from scipy.sparse.csgraph import floyd_warshall
 from scipy.sparse import csr_matrix
@@ -439,9 +441,10 @@ class BN(nx.DiGraph):
         return cpdag
 
 class CPDAG(BN):
-    '''Subclass of :py:class:`pygobnilp.gobnilp.BN <pygobnilp.gobnilp.BN>` which is itself a subclass of
-    `networkx.DiGraph <https://networkx.github.io/documentation/stable/reference/classes/digraph.html>`_. 
-    See documentation for those classes for all methods not documented here.
+    '''
+    Completed partially directed acyclic graphs.
+
+    A CPDAG represents a Markov equivalence class of DAGs. 
     '''
 
     directed_arrow_text = '->'
@@ -1045,11 +1048,14 @@ class Gobnilp(Model):
             raise Gobnilp.StageError(self.stage,"No {0} variables in the model yet.".format(vtype))
 
     def add_forbidden_arrow(self,u,v):
-        '''Add constraint that there can be no arrow from `u` to `v`
+        '''Add a constraint that there can be no arrow between two vertices
         
         Args:
-         u (str) : Head of arrow
-         v (str) : Tail of arrow
+         u (str) : Head of forbidden arrow
+         v (str) : Tail of forbidden arrow
+
+        Raises:
+         Gobnilp.UserConstraintError: If the vertices are the same or the arrow is also obligatory.
         '''
         if (u,v) in self._forbidden_arrows:
             return
@@ -1062,6 +1068,15 @@ class Gobnilp(Model):
         self._forbidden_arrows.add((u,v))
             
     def add_obligatory_arrow(self,u,v):
+        '''Add constraint that there must be an arrow from `u` to `v`
+        
+        Args:
+         u (str) : Head of arrow
+         v (str) : Tail of arrow
+
+        Raises:
+         Gobnilp.UserConstraintError: If the vertices are the same or the arrow is also forbidden or would create a cycle.
+        '''
         if (u,v) in self._obligatory_arrows:
             return
         if u == v:
@@ -1073,6 +1088,15 @@ class Gobnilp(Model):
         self.add_obligatory_ancestor(u,v)
 
     def add_forbidden_ancestor(self,u,v):
+        '''Add constraint that there can be no directed path from `u` to `v`
+        
+        Args:
+         u (str) : Start of path
+         v (str) : End of path
+
+        Raises:
+         Gobnilp.UserConstraintError: If the vertices are the same or the directed path is also obligatory.
+        '''
         if (u,v) in self._forbidden_ancestors:
             return
         if u == v:
@@ -1083,6 +1107,15 @@ class Gobnilp(Model):
         self._forbidden_ancestors.add((u,v))
 
     def add_obligatory_ancestor(self,u,v):
+        '''Add a constraint that there must be a directed path between specified vertices.
+        
+        Args:
+         u (str) : Start of path
+         v (str) : End of path
+
+        Raises:
+         Gobnilp.UserConstraintError: If the vertices are the same or the directed path is also forbidden or would create a cycle.
+        '''
         if (u,v) in self._obligatory_ancestors: #stop recursion safety!
             return
         if u == v:
@@ -1100,6 +1133,14 @@ class Gobnilp(Model):
                 self.add_obligatory_ancestors(a,v)
 
     def add_forbidden_adjacency(self,uv):
+        '''Add a constraint that a pair of vertices must not be adjacent.
+                
+        Args:
+         uv (iter) : Pairs of nodes
+
+        Raises:
+         Gobnilp.UserConstraintError: If the adjacency is also obligatory.
+        '''
         uv = frozenset(uv)
         if uv in self._forbidden_adjacencies: 
             return
@@ -1113,6 +1154,14 @@ class Gobnilp(Model):
         self._forbidden_adjacencies.add(uv)
         
     def add_obligatory_adjacency(self,uv):
+        '''Add a constraint that a pair of vertices must be adjacent.
+                
+        Args:
+         uv (iter) : Pairs of nodes
+
+        Raises:
+         Gobnilp.UserConstraintError: If the adjacency is also forbidden.
+        '''
         uv = frozenset(uv)
         if uv in self._obligatory_adjacencies: 
             return
@@ -1130,9 +1179,37 @@ class Gobnilp(Model):
             self.add_obligatory_arrow(u,v)
 
     def add_obligatory_independence(self,a,b):
+        '''
+        Add a constraint that each BN variable in `a` must be independent of each BN variable in `b`.
+
+        Args:
+         a (iter) : A set of BN variables
+         b (iter) : A set of BN variables
+
+        Raises:
+         Gobnilp.UserConstraintError: If the 3 sets are not disjoint or the desired conditional independence is not possible
+          (given other constraints).
+        '''
+
         self.add_obligatory_conditional_independence(a,b,frozenset())
         
     def add_obligatory_conditional_independence(self,a,b,s):
+        '''
+        Add a constraint that each BN variable in `a` must be independent of each BN variable in `b` conditional on `s`.
+
+        Args:
+         a (iter) : A set of BN variables
+         b (iter) : A set of BN variables
+         s (iter) : A set, possibly empty, of BN variables
+
+        Raises:
+         Gobnilp.UserConstraintError: If `a` or `b` is empty or the 3 sets are not 
+          disjoint or the desired conditional independence is not possible
+         (given other constraints).
+        '''
+        if len(a) == 0 or len(b) == 0:
+            raise Gobnilp.UserConstraintError(
+                "In conditional independence constraint {0} and {1} must both be non-empty.".format(a,b))
         aset = frozenset(a)
         bset = frozenset(b)
         sset = frozenset(s)
@@ -1167,10 +1244,19 @@ class Gobnilp(Model):
         self._stage = stage
 
         
-    def set_start(self,dag):
-        self.set_starts([dag])
-        
     def set_starts(self,dags):
+        '''Provide a set of 'starting' DAGs
+
+        The highest scoring of these DAGs will become the initial incumbent in the search for the best DAG.
+        So the learned DAG will have a score at least as good as the best of these.
+
+        This method should be called prior to computing local scores to ensure that the local scores required for
+        each starting DAG are computed even if parent sets in starting DAGs are bigger than the current limit on parent sets.
+        (So limits on parent set size do not affect starting DAGs).
+
+        Args:
+         dags (iter): Collection of DAGS. Each individual DAG must be either a bnlearn modelstring or a nx.DiGraph object.
+        '''
         for dag in dags:
             if type(dag) == str:
                 # assume a 'model string'
@@ -1528,7 +1614,7 @@ class Gobnilp(Model):
         if not hasattr(self,'_bn_variables'):
             self._bn_variables = sorted(self._family_scores)
 
-    def add_constraints_total_order_local_score(self):
+    def _add_constraints_total_order_local_score(self):
         ordered_parentsets = self.ordered_parentsets
         fs = self.family_scores
         total_order = self.total_order
@@ -1696,7 +1782,7 @@ class Gobnilp(Model):
             for i in rep_dag:
                 self.cbLazy(lexpr, GRB.LESS_EQUAL, rhs + family_list[i])
 
-    def all_to_nx(self):
+    def _all_to_nx(self):
         '''
         Constructs a list of ``BN`` objects corresponding to each solution
         in order
@@ -1704,13 +1790,11 @@ class Gobnilp(Model):
         nxs = []
         for i in range(self.Solcount):
             self.Params.SolutionNumber = i
-            nxs.append(self.to_nx())
+            nxs.append(self._to_nx())
         nxs = tuple(nxs)
         self._nxs = nxs
 
-    make_bns = all_to_nx
-    
-    def to_nx(self):
+    def _to_nx(self):
         '''
         Returns a ``BN`` object corresponding to a solution
 
@@ -1740,7 +1824,7 @@ class Gobnilp(Model):
         from networkx.drawing.nx_agraph import write_dot
         # ignore buggy StopIteration exception
         try:
-            write_dot(self.to_nx(),path)
+            write_dot(self._to_nx(),path)
         except RuntimeError:
             pass
         
@@ -1755,8 +1839,10 @@ class Gobnilp(Model):
 
         Args:
             path(str): The output file name
+
+        Raises:
+         FileNotFoundError: If the 'dot' executable is not available.
         '''
-        import subprocess
         self.write_dot()
         subprocess.call(['dot', '-Tpdf', 'bn.dot', '-o', path])
         
@@ -1937,7 +2023,6 @@ class Gobnilp(Model):
         Args:
             branch_priority (int): The Gurobi branching priority for the 
              adjacency variables.
-
         '''
         adj = {}
         n = 0
@@ -1952,6 +2037,14 @@ class Gobnilp(Model):
 
 
     def add_variables_genindex(self,branch_priority=0,earlyfirst=True):
+        '''Adds binary variables indicating whether a BN variable has a particular generation number 
+
+        Args:
+            branch_priority (int): The Gurobi branching priority for the 
+             generation index variables. (Ignored if `earlyfirst==True`.)
+            earlyfirst (bool): Generation index variable for low generation numbers have higher
+             branching priority than those for high generation numbers.  
+        '''
         genindex = {}
         n = 0
         for bn_variable in self.bn_variables:
@@ -2365,7 +2458,7 @@ class Gobnilp(Model):
             print('%d adjacency variables removed' % m, file=sys.stderr)
 
     def add_constraints_sumgen(self):
-        '''Adds the constraint that sum of gen numbers is n*(n-1)/2
+        '''Adds the constraint that sum of generation numbers is n*(n-1)/2
         '''
         n = self.n
         self.addConstr(
@@ -2442,6 +2535,9 @@ class Gobnilp(Model):
             
     def add_constraints_cycles(self):
         '''Adds cycle constraints (on arrow variables)
+
+        Since there are exponentially many possible cycles, these constraints are added lazily
+        (via a callback). 
         '''
         self._enforcing_cycle_constraints = True
         self.Params.LazyConstraints = 1
@@ -2473,7 +2569,7 @@ class Gobnilp(Model):
             print('(Lazy) "cluster" constraints in use', file=sys.stderr)
 
     def add_constraints_bests(self):
-        '''Add the constraint that at least one BN varaible has its best scoring parent
+        '''Add the constraint that at least one BN variable has its best scoring parent
         set selected
         '''
         best = {}
@@ -3225,6 +3321,9 @@ class Gobnilp(Model):
             nsols (int): Number of BNs to learn
             kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
             mec (bool): Whether only one BN per Markov equivalence class should be feasible.
+
+        Raises:
+         Gobnilp.StageError: If local scores are not yet available. 
         '''
         self.add_basic_variables()
         self.update()
@@ -3291,6 +3390,9 @@ class Gobnilp(Model):
          abbrev (bool): When plotting whether to abbreviate variable names to the first 3 characters.
          output_file (str/None): If not None, the name of a file to write the learned BN (the first one if several learned).
             If the filename ends in '.dot' then a dot file is created. If the filename ends in '.pdf' then a dot file and a PDF is created. 
+
+        Raises:
+         ValueError: If `start= 'no data'` but no data source or local scores source has been provided 
          '''
 
         
@@ -3408,7 +3510,7 @@ class Gobnilp(Model):
 
         if self.between(self._stage,'BN(s)',end):
             # no BNs constructed (from MIP solution), so construct them
-            self.all_to_nx()
+            self._all_to_nx()
             self._stage = 'BN(s)'
 
         if self.between(self._stage,'CPDAG(s)',end):

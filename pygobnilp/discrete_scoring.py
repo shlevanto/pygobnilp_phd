@@ -597,8 +597,9 @@ class LLPenalised(DiscreteData):
          parents (iter): The parent variables
 
         Returns:
-         tuple: (1) The fitted log-likelihood local score for the given family and 
-                (2) the number of joint instantations of the parents (or None if too big)
+         tuple: 
+            (1) The fitted log-likelihood local score for the given family and 
+            (2) the number of joint instantations of the parents (or None if too big)
         '''
         family_cols = np.array(sorted([self._varidx[x] for x in list(parents)+[child]]), dtype=np.uint32)
         contab, strides = make_contab(self._unique_data, self._unique_data_counts, family_cols,

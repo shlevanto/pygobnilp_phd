@@ -29,6 +29,9 @@ import numpy as np
 import pandas as pd
 
 class ContinuousData:
+    """
+    Complete continuous data
+    """
 
     def __init__(self, data, varnames=None):
         '''Continuous data
@@ -111,7 +114,9 @@ class ContinuousData:
 
         
 class BGe(ContinuousData):
-
+    """
+    Continuous data with attributes and methods for BGe scoring
+    """
     def __init__(self, data, nu=None, alpha_mu = 1.0, alpha_omega = None, prior_matrix=None):
         '''Create a BGe scoring object
 
