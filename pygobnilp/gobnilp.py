@@ -1136,7 +1136,7 @@ class Gobnilp(Model):
         '''Add a constraint that a pair of vertices must not be adjacent.
                 
         Args:
-         uv (iter) : Pairs of nodes
+         uv (iter) : Pair of nodes
 
         Raises:
          Gobnilp.UserConstraintError: If the adjacency is also obligatory.
@@ -1157,7 +1157,7 @@ class Gobnilp(Model):
         '''Add a constraint that a pair of vertices must be adjacent.
                 
         Args:
-         uv (iter) : Pairs of nodes
+         uv (iter) : Pair of nodes
 
         Raises:
          Gobnilp.UserConstraintError: If the adjacency is also forbidden.
@@ -3395,6 +3395,9 @@ class Gobnilp(Model):
          ValueError: If `start= 'no data'` but no data source or local scores source has been provided 
          '''
 
+        # if called from R palim will be a float so this needs correcting
+        if palim is not None:
+            palim = int(palim)
         
         for stage, stage_str in [(start,'Starting'),(end,'End')]:
             if stage not in self.stages_set:

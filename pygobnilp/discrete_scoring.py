@@ -614,7 +614,7 @@ class LLPenalised(DiscreteData):
         else:
             #have to make contab represented by unique insts
             pa_cols = np.delete(family_cols,child_idx)
-            pa_uniqs, pa_idxs = np.unique(data[:,pa_cols],axis=0,return_inverse=True) # numba cannot handle return_inverse arg
+            pa_uniqs, pa_idxs = np.unique(self._unique_data[:,pa_cols],axis=0,return_inverse=True) # numba cannot handle return_inverse arg
             return _compute_ll_from_unique_contab(self._unique_data, self._unique_data_counts,
                                                   len(pa_uniqs), pa_idxs, child_arity, child_col), None
     
