@@ -27,6 +27,8 @@ from math import log, pi
 from scipy.special import gammaln
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LinearRegression
+from scipy.stats import norm
 
 class ContinuousData:
     """
@@ -112,7 +114,44 @@ class ContinuousData:
 
         return self._varidx
 
+class GaussianLL(ContinuousData):
+    """
+    Continuous data with attributes and methods for Gaussian log-likelihood scoring
+    """
+
+    def __init__(self, data):
+        '''Create a GaussianLL scoring object
+
+        Args:
+            data (ContinuousData) : The data
+        '''
+        self.__dict__.update(data.__dict__)
+
+    def score(self,child,parents):
+        '''The Gaussian log-likelhood score for a given family, plus a dummy upper bound
+
+        Args:
+         child (str): The child variable
+         parents (iter) : The parents
+       
+        Returns:
+         tuple: First element of tuple is the Gaussian log-likelihood score for the family for current data
+          Second element is None
+        '''
+        response_idx = self._varidx[child]
+        y = self._data[:,response_idx]
+        if len(parents) == 0:
+            resids = np.mean(y) - y
+        else:
+            predictors_idx = np.array([self._varidx[v] for v in parents],dtype=np.uint32)
+            X = self._data[:,predictors_idx]
+            reg = LinearRegression().fit(X,y)
+            preds = reg.predict(X)
+            resids = y-preds
+        sd = np.std(resids)
+        return norm.logpdf(resids,scale=sd).sum(), None
         
+    
 class BGe(ContinuousData):
     """
     Continuous data with attributes and methods for BGe scoring

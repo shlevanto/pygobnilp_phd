@@ -52,7 +52,7 @@ except ImportError as e:
     print(e)
 
 try:
-    from .continuous_scoring import ContinuousData, BGe
+    from .continuous_scoring import ContinuousData, BGe, GaussianLL
 except ImportError as e:
     print("Could not import BGe score generating code!")
     print(e)
@@ -1039,7 +1039,7 @@ class Gobnilp(Model):
 
         self._stage = 'no data'
 
-        self._known_local_scores = frozenset(['BDeu','BGe','LL','BIC', 'AIC'])
+        self._known_local_scores = frozenset(['BDeu','BGe','LL','BIC', 'AIC','GaussianLL'])
         
     def _getmipvars(self,vtype):
         try:
@@ -3461,6 +3461,9 @@ class Gobnilp(Model):
                     local_score_fun = BIC(self._data).score
                 elif local_score_type == 'AIC':
                     local_score_fun = AIC(self._data).score
+                elif local_score_type == 'GaussianLL':
+                    local_score_fun = GaussianLL(self._data).score
+
 
                     
                 # take any non-zero edge penalty into account
