@@ -398,7 +398,7 @@ def fromdataframe(df):
 
 class Data:
     """
-    Complete discrete data (either discrete or continuous)
+    Complete data (either discrete or continuous)
 
     This is an abstract class
     """

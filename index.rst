@@ -34,13 +34,20 @@ The MN class
 
 .. autoclass:: pygobnilp.gobnilp.MN
    :members:
-   
+
+The Data class
+-----------------------------
+
+.. autoclass:: pygobnilp.scoring.Data
+   :members:
+
       
 The DiscreteData class
 -----------------------------
 
 .. autoclass:: pygobnilp.scoring.DiscreteData
    :members:
+   :show-inheritance:
 
       
 The LLPenalised class
@@ -84,7 +91,8 @@ The ContinuousData class
 
 .. autoclass:: pygobnilp.scoring.ContinuousData
    :members:
-
+   :show-inheritance:
+      
 The BGe class
 -------------
 
