@@ -46,16 +46,11 @@ except ImportError as e:
     print(e)
 
 try:
-    from .discrete_scoring import DiscreteData, BDeu, BIC, AIC, LL
+    from .scoring import DiscreteData, BDeu, BIC, AIC, LL, ContinuousData, BGe, GaussianLL
 except ImportError as e:
-    print("Could not import BDeu score generating code!")
+    print("Could not import score generating code!")
     print(e)
 
-try:
-    from .continuous_scoring import ContinuousData, BGe, GaussianLL
-except ImportError as e:
-    print("Could not import BGe score generating code!")
-    print(e)
 
 try:
     import networkx as nx

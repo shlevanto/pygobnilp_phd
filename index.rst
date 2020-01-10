@@ -39,28 +39,28 @@ The MN class
 The DiscreteData class
 -----------------------------
 
-.. autoclass:: pygobnilp.discrete_scoring.DiscreteData
+.. autoclass:: pygobnilp.scoring.DiscreteData
    :members:
 
       
 The LLPenalised class
 -----------------------------
 
-.. autoclass:: pygobnilp.discrete_scoring.LLPenalised
+.. autoclass:: pygobnilp.scoring.LLPenalised
    :members:
    :show-inheritance:
       
 The LL class
 -----------------------------
 
-.. autoclass:: pygobnilp.discrete_scoring.LL
+.. autoclass:: pygobnilp.scoring.LL
    :members:
    :show-inheritance:
       
 The BIC class
 -----------------------------
 
-.. autoclass:: pygobnilp.discrete_scoring.BIC
+.. autoclass:: pygobnilp.scoring.BIC
    :members:
    :show-inheritance:
 
@@ -68,27 +68,27 @@ The BIC class
 The AIC class
 -----------------------------
 
-.. autoclass:: pygobnilp.discrete_scoring.AIC
+.. autoclass:: pygobnilp.scoring.AIC
    :members:
    :show-inheritance:
 
 The BDeu class
 -----------------------------
 
-.. autoclass:: pygobnilp.discrete_scoring.BDeu
+.. autoclass:: pygobnilp.scoring.BDeu
    :members:
    :show-inheritance:
 
 The ContinuousData class
 -----------------------------
 
-.. autoclass:: pygobnilp.continuous_scoring.ContinuousData
+.. autoclass:: pygobnilp.scoring.ContinuousData
    :members:
 
 The BGe class
 -------------
 
-.. autoclass:: pygobnilp.continuous_scoring.BGe
+.. autoclass:: pygobnilp.scoring.BGe
    :members:
    :show-inheritance:
 
