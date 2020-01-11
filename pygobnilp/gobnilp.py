@@ -46,7 +46,11 @@ except ImportError as e:
     print(e)
 
 try:
-    from .scoring import DiscreteData, BDeu, BIC, AIC, LL, ContinuousData, BGe, GaussianLL
+    from .scoring import (
+        DiscreteData, ContinuousData,
+        BDeu, BGe,
+        DiscreteLL, DiscreteBIC, DiscreteAIC,
+        GaussianLL, GaussianBIC, GaussianAIC)
 except ImportError as e:
     print("Could not import score generating code!")
     print(e)
@@ -1034,8 +1038,10 @@ class Gobnilp(Model):
 
         self._stage = 'no data'
 
-        self._known_local_scores = frozenset(['BDeu','BGe','LL','BIC', 'AIC','GaussianLL'])
-        
+        self._known_local_scores = frozenset(['BDeu','BGe',
+        'DiscreteLL', 'DiscreteBIC', 'DiscreteAIC',
+        'GaussianLL', 'GaussianBIC', 'GaussianAIC'])
+
     def _getmipvars(self,vtype):
         try:
             return self._mipvars[vtype]
@@ -1463,7 +1469,7 @@ class Gobnilp(Model):
                             # some subset is exponentially pruned, so don't score
                             # or: best we can hope for for parents (i.e. lub) is no better than some existing subset
                             # of parents (i.e. the one with score bss)
-                            if verbose > 1 and (bss is not None and lub is not None and bss >= lub):
+                            if verbose > 2 and (bss is not None and lub is not None and bss >= lub):
                                 print('Pruning and not scoring {0}<-{2}{4}:\n\
                                 \tFor child variable {0}, {1} is an upper bound for\n\
                                 \t {2} and its supersets\n\tand some subset of {2} has score {3}'.format(child,lub,parents,bss,msg))
@@ -1490,7 +1496,7 @@ class Gobnilp(Model):
                             # not the last layer yet
                             if ub is not None and ub <= best:
                                 # none of the proper supersets worth keeping
-                                if verbose > 1:
+                                if verbose > 2:
                                     print('Pruning:\n \tFor child variable {0} {4} a subset of {1} has score {2} \n\
                                     \tand {3} is an upper bound on proper supersets of {1},'.format(child, parents, best,ub, msg))
                             else:
@@ -3450,17 +3456,9 @@ class Gobnilp(Model):
                     local_score_fun = BDeu(self._data,alpha=alpha).bdeu_score
                 elif local_score_type == 'BGe':
                     local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
-                elif local_score_type == 'LL':
-                    local_score_fun = LL(self._data).score
-                elif local_score_type == 'BIC':
-                    local_score_fun = BIC(self._data).score
-                elif local_score_type == 'AIC':
-                    local_score_fun = AIC(self._data).score
-                elif local_score_type == 'GaussianLL':
-                    local_score_fun = GaussianLL(self._data).score
+                else:
+                    local_score_fun = globals()[local_score_type](self._data).score
 
-
-                    
                 # take any non-zero edge penalty into account
                 if edge_penalty != 0.0:
                     def local_score_edge(child,parents):

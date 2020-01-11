@@ -507,7 +507,6 @@ class DiscreteData(Data):
         else:
             data = np.array(data_source,dtype=np.uint32)
         self._data = data
-        self._data_length = data.shape[0]
         if arities is None:
             self._arities = np.array([x+1 for x in data.max(axis=0)],dtype=np.uint32)
         else:
@@ -517,14 +516,17 @@ class DiscreteData(Data):
         else:
             # order of varnames determined by header line in file, if file used
             self._variables = varnames
-        self._varidx = {}
-        for i, v in enumerate(self._variables):
-            self._varidx[v] = i
 
         self._unique_data, counts = np.unique(self._data, axis=0, return_counts=True)
         self._unique_data_counts = np.array(counts,np.uint32)
             
         self._maxflatcontabsize = 1000000
+
+        self._varidx = {}
+        for i, v in enumerate(self._variables):
+            self._varidx[v] = i
+        self._data_length = data.shape[0]
+
         
     def data(self):
         '''
@@ -572,23 +574,121 @@ class DiscreteData(Data):
         cols.sort() 
         return make_contab(self._unique_data,self._unique_data_counts,cols,self._arities[cols],self._maxflatcontabsize)[0]
     
+class ContinuousData(Data):
+    """
+    Complete continuous data
+    """
+
+    def __init__(self, data, varnames=None):
+        '''Continuous data
+
+        Args:
+            data (numpy.ndarray/str) : The data (either as an array or a filename containing the data)
+            varnames (iterable/None) : The names of the variables. If not given
+             (=None) and `data` is not a file having the variable names as a header 
+             then the variables are named X1, X2, X3, etc
+        '''
+        if type(data) == str:
+            skiprows = 0
+            with open(data) as f:            
+                for line in f:
+                    if not line.startswith('#'):
+                        varnames = line.strip().split()
+                        skiprows += 1
+                        break
+                    else:
+                        skiprows +=1
+            data = np.loadtxt(data, dtype = float, comments = '#', skiprows = skiprows)
+        else:
+            if type(data) == pd.DataFrame:
+                varnames = list(data.columns)
+            data = np.array(data, dtype=float)
+        self._data = data
+        
+        try:
+            n, p = data.shape
+        except ValueError:
+            raise ValueError("Data must be a 2-d array")
+            
+        if varnames is None:
+            varnames = tuple(('X{0}'.format(i+1) for i in range(p)))
+        if len(varnames) != p:
+            raise ValueError("Expected {0} variable names, got {1}".format(p,len(varnames)))
+    
+        # store everything
+        self._n = n
+        self._p = p
+        self._variables = varnames
+        self._cache = {}
+        
+        self._varidx = {}
+        for i, v in enumerate(varnames):
+            self._varidx[v] = i
+        self._data_length = data.shape[0]
 
 
-class LLPenalised(DiscreteData):
-    '''Abstract class for penalised log likelihood scores
+    def data(self):
+        '''
+        The data as a Pandas dataframe.
+
+        Returns:
+         pandas.DataFrame: The data
+        '''
+
+        return pd.DataFrame(self._data,columns=self._variables)
+
+
+# START Classes for penalised log-likelihood 
+    
+class _AbsLLPenalised:
+    '''Abstract class for discrete penalised log likelihood scores
     '''
 
     def __init__(self,data):
-        '''Initialises a `LLPenalised` object.
+        '''Initialises a `_AbsLLPenalised` object.
 
         Args:
-         data (DiscreteData): data
+         data (DiscreteData/Continuous): data
         '''
         self.__dict__.update(data.__dict__)
         self._maxllh = {}
         for i, v in enumerate(self._variables):
             self._maxllh[v] = self.ll_score(v,self._variables[:i]+self._variables[i+1:])[0]
-            
+
+
+    
+class AbsDiscreteLLScore(DiscreteData):
+    '''Abstract class for discrete log likelihood scores
+    '''
+
+    def score(self,child,parents):
+        '''
+        Return LL score minus complexity penalty for `child` having `parents`, 
+        and also upper bound on the score for proper supersets.
+
+        To compute the penalty the number of joint instantations is multiplied by the arity
+        of the child minus one. This value is then multiplied by log(N)/2 for BIC and 1 for AIC.
+
+        Args:
+         child (str): The child variable
+         parents (iter): The parent variables
+
+        Raises:
+         ValueError: If the number of joint instantations of the parents would cause an overflow
+          when computing the penalty
+        
+        Returns:
+         tuple: The local score for the given family and an upper bound on the local score 
+         for proper supersets of `parents`
+        '''
+        this_ll_score, numinsts = self.ll_score(child,parents)
+        if numinsts is None:
+            raise ValueError('Too many joint instantiations of parents {0} to compute penalty'.format(parents))
+        penalty = numinsts * self._child_penalties[child]
+        # number of parent insts will at least double if any added
+        return this_ll_score - penalty, self._maxllh[child] - (penalty*2)
+
+    
     def ll_score(self,child,parents):
         '''
         The fitted log-likelihood score for `child` having `parents`
@@ -621,44 +721,17 @@ class LLPenalised(DiscreteData):
             pa_uniqs, pa_idxs = np.unique(self._unique_data[:,pa_cols],axis=0,return_inverse=True) # numba cannot handle return_inverse arg
             return _compute_ll_from_unique_contab(self._unique_data, self._unique_data_counts,
                                                   len(pa_uniqs), pa_idxs, child_arity, child_col), None
-    
-    def score(self,child,parents):
-        '''
-        Return LL score minus complexity penalty for `child` having `parents`, 
-        and also upper bound on the score for proper supersets.
 
-        To compute the penalty the number of joint instantations is multiplied by the arity
-        of the child minus one. This value is then multiplied by log(N)/2 for BIC and 1 for AIC.
-
-        Args:
-         child (str): The child variable
-         parents (iter): The parent variables
-
-        Raises:
-         ValueError: If the number of joint instantations of the parents would cause an overflow
-          when computing the penalty
-        
-        Returns:
-         tuple: The local score for the given family and an upper bound on the local score 
-         for proper supersets of `parents`
-        '''
-        this_ll_score, numinsts = self.ll_score(child,parents)
-        if numinsts is None:
-            raise ValueError('Too many joint instantiations of parents {0} to compute penalty'.format(parents))
-        penalty = numinsts * self._child_penalties[child]
-        # number of parent insts will at least double if any added
-        return this_ll_score - penalty, self._maxllh[child] - (penalty*2)
-
-
-class LL(LLPenalised):
+class DiscreteLL(AbsDiscreteLLScore):
 
     def __init__(self,data):
-        '''Initialises a `LL` object.
+        '''Initialises a `DiscreteLL` object.
 
         Args:
          data (DiscreteData): data
         '''
-        super(LL,self).__init__(data)
+        _AbsLLPenalised.__init__(self,data)
+
 
     def score(self,child,parents):
         '''
@@ -674,34 +747,143 @@ class LL(LLPenalised):
          for proper supersets of `parents`
         '''
         return self.ll_score(child,parents)[0], self._maxllh[child]
-        
-class BIC(LLPenalised):
-    """
-    Discrete data with attributes and methods for BIC scoring
-    """
+
+class DiscreteBIC(AbsDiscreteLLScore):
+
     def __init__(self,data):
-        '''Initialises a `BIC` object.
+        '''Initialises a `DiscreteBIC` object.
 
         Args:
          data (DiscreteData): data
         '''
-        super(BIC,self).__init__(data)
+        _AbsLLPenalised.__init__(self,data)
         fn = 0.5 * log(self._data_length)  # Carvalho notation
         self._child_penalties = {v:fn*(self.arity(v)-1) for v in self._variables}
 
-class AIC(LLPenalised):
-    """
-    Discrete data with attributes and methods for AIC scoring
-    """
+
+class DiscreteAIC(AbsDiscreteLLScore):
+
     def __init__(self,data):
-        '''Initialises an `AIC` object.
+        '''Initialises an `DiscreteAIC` object.
 
         Args:
          data (DiscreteData): data
         '''
-        super(AIC,self).__init__(data)
+        _AbsLLPenalised.__init__(self,data)
         self._child_penalties = {v:self.arity(v)-1 for v in self._variables}
 
+class AbsGaussianLLScore(ContinuousData):
+    """
+    Abstract class for Gaussian log-likelihood scoring
+    """
+
+    def ll_score(self,child,parents):
+        '''The Gaussian log-likelhood score for a given family, plus a dummy upper bound
+
+        Args:
+         child (str): The child variable
+         parents (iter) : The parents
+       
+        Returns:
+         tuple: First element of tuple is the Gaussian log-likelihood score for the family for current data
+          Second element is number of parameters which is number of parents plus 2 (intercept plus sd of residuals)
+        '''
+        response_idx = self._varidx[child]
+        y = self._data[:,response_idx]
+        if len(parents) == 0:
+            resids = np.mean(y) - y
+        else:
+            predictors_idx = np.array([self._varidx[v] for v in parents],dtype=np.uint32)
+            X = self._data[:,predictors_idx]
+            reg = LinearRegression().fit(X,y)
+            preds = reg.predict(X)
+            resids = y-preds
+        sd = np.std(resids)
+        return norm.logpdf(resids,scale=sd).sum(), len(parents)+2
+
+class GaussianLL(AbsGaussianLLScore):
+    
+    def __init__(self,data):
+        '''Initialises an `GaussianLL` object.
+
+        Args:
+         data (ContinuousData): data
+        '''
+        _AbsLLPenalised.__init__(self,data)
+
+    def score(self,child,parents):
+        '''
+        Return the fitted log-likelihood score for `child` having `parents`, 
+        and also upper bound on the score for proper supersets of `parents`.
+
+        Args:
+         child (str): The child variable
+         parents (iter): The parent variables
+
+        Returns:
+         tuple: The fitted log-likelihood local score for the given family and an upper bound on the local score 
+         for proper supersets of `parents`
+        '''
+        return self.ll_score(child,parents)[0], self._maxllh[child]
+
+        
+class GaussianBIC(AbsGaussianLLScore):
+
+    def __init__(self,data):
+        '''Initialises an `GaussianLL` object.
+
+        Args:
+         data (ContinuousData): data
+        '''
+        _AbsLLPenalised.__init__(self,data)
+        self._fn = 0.5 * log(self._data_length)  # Carvalho notation
+
+        
+    def score(self,child,parents):
+        '''
+        Return the fitted Gaussian BIC score for `child` having `parents`, 
+        and also upper bound on the score for proper supersets of `parents`.
+
+        Args:
+         child (str): The child variable
+         parents (iter): The parent variables
+
+        Returns:
+         tuple: The Gaussian BIC local score for the given family and an upper bound on the local score 
+         for proper supersets of `parents`
+        '''
+        this_ll_score, numparams = self.ll_score(child,parents)
+        return this_ll_score - self._fn * numparams, self._maxllh[child] - self._fn * (numparams+1)
+
+class GaussianAIC(AbsGaussianLLScore):
+
+    def __init__(self,data):
+        '''Initialises an `GaussianLL` object.
+
+        Args:
+         data (ContinuousData): data
+        '''
+        _AbsLLPenalised.__init__(self,data)
+
+    def score(self,child,parents):
+        '''
+        Return the fitted Gaussian AIC score for `child` having `parents`, 
+        and also upper bound on the score for proper supersets of `parents`.
+
+        Args:
+         child (str): The child variable
+         parents (iter): The parent variables
+
+        Returns:
+         tuple: The Gaussian AIC local score for the given family and an upper bound on the local score 
+         for proper supersets of `parents`
+        '''
+        this_ll_score, numparams = self.ll_score(child,parents)
+        return this_ll_score - numparams, self._maxllh[child] - (numparams+1)
+
+
+# END Classes for penalised log-likelihood 
+    
 class BDeu(DiscreteData):
     """
     Discrete data with attributes and methods for BDeu scoring
@@ -909,107 +1091,7 @@ class BDeu(DiscreteData):
 
             
         return score_dict
-    
 
-class ContinuousData(Data):
-    """
-    Complete continuous data
-    """
-
-    def __init__(self, data, varnames=None):
-        '''Continuous data
-
-        Args:
-            data (numpy.ndarray/str) : The data (either as an array or a filename containing the data)
-            varnames (iterable/None) : The names of the variables. If not given
-             (=None) and `data` is not a file having the variable names as a header 
-             then the variables are named X1, X2, X3, etc
-        '''
-        if type(data) == str:
-            skiprows = 0
-            with open(data) as f:            
-                for line in f:
-                    if not line.startswith('#'):
-                        varnames = line.strip().split()
-                        skiprows += 1
-                        break
-                    else:
-                        skiprows +=1
-            data = np.loadtxt(data, dtype = float, comments = '#', skiprows = skiprows)
-        else:
-            if type(data) == pd.DataFrame:
-                varnames = list(data.columns)
-            data = np.array(data, dtype=float)
-        self._data = data
-        
-        try:
-            n, p = data.shape
-        except ValueError:
-            raise ValueError("Data must be a 2-d array")
-            
-        if varnames is None:
-            varnames = tuple(('X{0}'.format(i+1) for i in range(p)))
-        if len(varnames) != p:
-            raise ValueError("Expected {0} variable names, got {1}".format(p,len(varnames)))
-    
-        # store everything
-        self._n = n
-        self._p = p
-        self._variables = varnames
-        self._varidx = {}
-        for i, v in enumerate(varnames):
-            self._varidx[v] = i
-        self._cache = {}
-
-
-    def data(self):
-        '''
-        The data as a Pandas dataframe.
-
-        Returns:
-         pandas.DataFrame: The data
-        '''
-
-        return pd.DataFrame(self._data,columns=self._variables)
-
-class GaussianLL(ContinuousData):
-    """
-    Continuous data with attributes and methods for Gaussian log-likelihood scoring
-    """
-
-    def __init__(self, data):
-        '''Create a GaussianLL scoring object
-
-        Args:
-            data (ContinuousData) : The data
-        '''
-        self.__dict__.update(data.__dict__)
-
-    def score(self,child,parents):
-        '''The Gaussian log-likelhood score for a given family, plus a dummy upper bound
-
-        Args:
-         child (str): The child variable
-         parents (iter) : The parents
-       
-        Returns:
-         tuple: First element of tuple is the Gaussian log-likelihood score for the family for current data
-          Second element is None
-        '''
-        response_idx = self._varidx[child]
-        y = self._data[:,response_idx]
-        if len(parents) == 0:
-            resids = np.mean(y) - y
-        else:
-            predictors_idx = np.array([self._varidx[v] for v in parents],dtype=np.uint32)
-            X = self._data[:,predictors_idx]
-            reg = LinearRegression().fit(X,y)
-            preds = reg.predict(X)
-            resids = y-preds
-        sd = np.std(resids)
-        return norm.logpdf(resids,scale=sd).sum(), None
-        
-    
 class BGe(ContinuousData):
     """
     Continuous data with attributes and methods for BGe scoring

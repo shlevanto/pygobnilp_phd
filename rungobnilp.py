@@ -76,11 +76,11 @@ else:
                     **argsdict)
     else:
         if args.bic:
-            lst='BIC'
+            lst='DiscreteBIC'
         elif args.aic:
-            lst='AIC'
+            lst='DiscreteAIC'
         elif args.ll:
-            lst='LL'
+            lst='DiscreteLL'
         else:
             lst='BDeu'
         model.learn(data_type='discrete',local_score_type=lst,
