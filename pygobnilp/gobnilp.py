@@ -50,7 +50,7 @@ try:
         DiscreteData, ContinuousData,
         BDeu, BGe,
         DiscreteLL, DiscreteBIC, DiscreteAIC,
-        GaussianLL, GaussianBIC, GaussianAIC)
+        GaussianLL, GaussianBIC, GaussianAIC, GaussianL0)
 except ImportError as e:
     print("Could not import score generating code!")
     print(e)
@@ -1038,9 +1038,10 @@ class Gobnilp(Model):
 
         self._stage = 'no data'
 
-        self._known_local_scores = frozenset(['BDeu','BGe',
-        'DiscreteLL', 'DiscreteBIC', 'DiscreteAIC',
-        'GaussianLL', 'GaussianBIC', 'GaussianAIC'])
+        self._known_local_scores = frozenset([
+            'BDeu','BGe',
+            'DiscreteLL', 'DiscreteBIC', 'DiscreteAIC',
+            'GaussianLL', 'GaussianBIC', 'GaussianAIC', 'GaussianL0'])
 
     def _getmipvars(self,vtype):
         try:
@@ -3337,9 +3338,11 @@ class Gobnilp(Model):
         # use any stored user constraints
         self._process_user_constraints()
             
-    def learn(self, data_source=None, start='no data', end='output shown', data_type='discrete',
+    def learn(self, data_source=None, varnames = None,
+              header=True, comments='#', delimiter=None,
+              start='no data', end='output shown', data_type='discrete',
               local_score_type='BDeu', local_score_fun=None,
-              varnames = None,
+              k=1, standardise=False,
               arities = None, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
@@ -3349,6 +3352,14 @@ class Gobnilp(Model):
         Args:
          data_source (str/array_like) : If not None, name of the file containing the discrete data or an array_like object.
                                If None, then it is assumed that  data has previously been read in.
+         varnames (iterable/None): Names for the variables in the data. If `data_source` is a filename then 
+                               this value is ignored and the variable names are those given in the file. 
+                               Otherwise if None then the variable names will X1, X2, ...
+         header (bool) : Ignored if `data` is not a filename with continuous data. 
+                               Whether a header containing variable names is the first non-comment line in the file.
+         comments (str) : Ignored if `data` is not a filename with continuous data. Lines starting with this string are treated as comments.
+         delimiter (None/str) : Ignored if `data` is not a filename with continuous data. 
+                                String used to separate values. If None then whitespace is used. 
          start (str): Starting stage for learning. Possible stages are: 'no data', 'data', 'local scores',
           'MIP model', 'MIP solution', 'BN(s)' and 'CPDAG(s)'.
          end (str): End stage for learning. Possible values are the same as for `start`.
@@ -3358,9 +3369,9 @@ class Gobnilp(Model):
          local_score_fun(fun/None): If not None a local score function such that `local_score_fun(child,parents)`
              computes `(score,ub)` where `score` is the desired local score for `child` having parentset `parents`
              and `ub` is either `None` or an upper bound on the local score for `child` with any proper superset of `parents`
-         varnames (iterable/None): Names for the variables in the data. If `data_source` is a filename then 
-                               this value is ignored and the variable names are those given in the file. 
-                               Otherwise if None then the variable names will X1, X2, ...
+         k (float): Penalty multiplier for penalised log-likelihood scores (eg BIC, AIC) or tuning parameter ('lambda^2) for l_0
+                    penalised Gaussian scoring (as per van de Geer and Buehlmann)
+         standardise (bool) : Whether to standardise continuous data.
          arities (array_like/None): Arities for the discrete variables. If `data_source` is a filename then 
                                this value is ignored and the arities are those given in the file. 
                                Otherwise if None then the arity for a variable is set to the number of distinct
@@ -3436,12 +3447,11 @@ class Gobnilp(Model):
                 if data_type == 'discrete':
                     self._data = DiscreteData(data_source, varnames=varnames, arities=arities) 
                 elif data_type == 'continuous':
-                    self._data = ContinuousData(data_source, varnames=varnames)
+                    self._data = ContinuousData(data_source, varnames=varnames, header=header,
+                                                comments=comments, delimiter=delimiter, standardise=standardise)
 
                 # BN variables always in order
-                bn_variables = self._data.variables()
-                bn_variables.sort()
-                self._bn_variables = bn_variables
+                self._bn_variables = sorted(self._data.variables())
 
                 # now BN variables have been set can pull in constraints from consfile
                 self.input_user_conss(consfile)
@@ -3457,7 +3467,11 @@ class Gobnilp(Model):
                 elif local_score_type == 'BGe':
                     local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
                 else:
-                    local_score_fun = globals()[local_score_type](self._data).score
+                    klass = globals()[local_score_type]
+                    if local_score_type.endswith('IC') or local_score_type == 'GaussianL0':
+                        local_score_fun = klass(self._data,k=k).score
+                    else:
+                        local_score_fun = klass(self._data).score
 
                 # take any non-zero edge penalty into account
                 if edge_penalty != 0.0:

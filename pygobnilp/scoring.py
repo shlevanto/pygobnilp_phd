@@ -511,11 +511,13 @@ class DiscreteData(Data):
             self._arities = np.array([x+1 for x in data.max(axis=0)],dtype=np.uint32)
         else:
             self._arities = np.array(arities,dtype=np.uint32)
+
+        # ensure _variables is immutable _varidx is always correct.
         if varnames is None:
-            self._variables = ['X{0}'.format(i) for i in range(1,len(self._arities)+1)]
+            self._variables = tuple(['X{0}'.format(i) for i in range(1,len(self._arities)+1)])
         else:
             # order of varnames determined by header line in file, if file used
-            self._variables = varnames
+            self._variables = tuple(varnames)
 
         self._unique_data, counts = np.unique(self._data, axis=0, return_counts=True)
         self._unique_data_counts = np.array(counts,np.uint32)
@@ -579,46 +581,59 @@ class ContinuousData(Data):
     Complete continuous data
     """
 
-    def __init__(self, data, varnames=None):
+    def __init__(self, data, varnames=None, header=True, comments='#', delimiter=None, standardise=False):
         '''Continuous data
 
         Args:
             data (numpy.ndarray/str) : The data (either as an array or a filename containing the data)
             varnames (iterable/None) : The names of the variables. If not given
-             (=None) and `data` is not a file having the variable names as a header 
-             then the variables are named X1, X2, X3, etc
+             (=None) then if  `data` is a file having the variable names as a header then these are used
+             else the variables are named X1, X2, X3, etc
+            header (bool) : Ignored if `data` is not a filename. 
+             Whether a header containing variable names is the first non-comment line in the file.
+            comments (str) : Ignored if `data` is not a filename. Lines starting with this string are treated as comments.
+            delimiter (None/str) : Ignored if `data` is not a filename. String used to separate values. If None then whitespace is used. 
+            standardise (bool) : Whether to standardise the date to have mean 0 and sd = 1.
         '''
         if type(data) == str:
             skiprows = 0
-            with open(data) as f:            
-                for line in f:
-                    if not line.startswith('#'):
-                        varnames = line.strip().split()
-                        skiprows += 1
-                        break
-                    else:
-                        skiprows +=1
-            data = np.loadtxt(data, dtype = float, comments = '#', skiprows = skiprows)
+            if header:
+                with open(data) as f:            
+                    for line in f:
+                        if line.startswith(comments):
+                             skiprows +=1
+                        else:
+                            vs = line.strip().split(sep=delimiter)
+                            if varnames is None:  # only overwrite varnames if none given 
+                                varnames = vs
+                            skiprows += 1
+                            break
+            data = np.loadtxt(data, dtype = float, comments = comments, delimiter=delimiter, skiprows = skiprows)
         else:
             if type(data) == pd.DataFrame:
                 varnames = list(data.columns)
             data = np.array(data, dtype=float)
-        self._data = data
-        
+
         try:
             n, p = data.shape
         except ValueError:
             raise ValueError("Data must be a 2-d array")
-            
+
+        if standardise:
+            self._data = (data - np.mean(data,axis=0)) / np.std(data,axis=0)
+        else:
+            self._data = data
+
+        
         if varnames is None:
-            varnames = tuple(('X{0}'.format(i+1) for i in range(p)))
+            varnames = ['X{0}'.format(i+1) for i in range(p)]
         if len(varnames) != p:
             raise ValueError("Expected {0} variable names, got {1}".format(p,len(varnames)))
     
         # store everything
         self._n = n
         self._p = p
-        self._variables = varnames
+        self._variables = tuple(varnames)
         self._cache = {}
         
         self._varidx = {}
@@ -750,27 +765,29 @@ class DiscreteLL(AbsDiscreteLLScore):
 
 class DiscreteBIC(AbsDiscreteLLScore):
 
-    def __init__(self,data):
+    def __init__(self,data,k=1):
         '''Initialises a `DiscreteBIC` object.
 
         Args:
          data (DiscreteData): data
+         k (float): Multiply standard BIC penalty by this amount, so increase for sparser networks
         '''
         _AbsLLPenalised.__init__(self,data)
         fn = 0.5 * log(self._data_length)  # Carvalho notation
-        self._child_penalties = {v:fn*(self.arity(v)-1) for v in self._variables}
+        self._child_penalties = {v:k*fn*(self.arity(v)-1) for v in self._variables}
 
 
 class DiscreteAIC(AbsDiscreteLLScore):
 
-    def __init__(self,data):
+    def __init__(self,data,k=1):
         '''Initialises an `DiscreteAIC` object.
 
         Args:
          data (DiscreteData): data
+         k (float): Multiply standard AIC penalty by this amount, so increase for sparser networks
         '''
         _AbsLLPenalised.__init__(self,data)
-        self._child_penalties = {v:self.arity(v)-1 for v in self._variables}
+        self._child_penalties = {v:k*(self.arity(v)-1) for v in self._variables}
 
 class AbsGaussianLLScore(ContinuousData):
     """
@@ -796,6 +813,7 @@ class AbsGaussianLLScore(ContinuousData):
             predictors_idx = np.array([self._varidx[v] for v in parents],dtype=np.uint32)
             X = self._data[:,predictors_idx]
             reg = LinearRegression().fit(X,y)
+            #print(parents,reg.coef_)
             preds = reg.predict(X)
             resids = y-preds
         sd = np.std(resids)
@@ -829,14 +847,15 @@ class GaussianLL(AbsGaussianLLScore):
         
 class GaussianBIC(AbsGaussianLLScore):
 
-    def __init__(self,data):
-        '''Initialises an `GaussianLL` object.
+    def __init__(self,data,k=1):
+        '''Initialises an `GaussianBIC` object.
 
         Args:
          data (ContinuousData): data
+         k (float): Multiply standard BIC penalty by this amount, so increase for sparser networks
         '''
         _AbsLLPenalised.__init__(self,data)
-        self._fn = 0.5 * log(self._data_length)  # Carvalho notation
+        self._fn = k * 0.5 * log(self._data_length)  # Carvalho notation
 
         
     def score(self,child,parents):
@@ -857,13 +876,15 @@ class GaussianBIC(AbsGaussianLLScore):
 
 class GaussianAIC(AbsGaussianLLScore):
 
-    def __init__(self,data):
-        '''Initialises an `GaussianLL` object.
+    def __init__(self,data,k=1):
+        '''Initialises an `GaussianAIC` object.
 
         Args:
          data (ContinuousData): data
+         k (float): Multiply standard AIC penalty by this amount, so increase for sparser networks
         '''
         _AbsLLPenalised.__init__(self,data)
+        self._k = k
 
     def score(self,child,parents):
         '''
@@ -879,7 +900,39 @@ class GaussianAIC(AbsGaussianLLScore):
          for proper supersets of `parents`
         '''
         this_ll_score, numparams = self.ll_score(child,parents)
-        return this_ll_score - numparams, self._maxllh[child] - (numparams+1)
+        return this_ll_score - self._k * numparams, self._maxllh[child] - self._k * (numparams+1)
+
+class GaussianL0(AbsGaussianLLScore):
+    '''
+    Implements score discussed in "l_0-Penalized Maximum Likelihood for Sparse Directed
+    Acyclic Graphs" by Sara van de Geer and Peter Buehlmann. Annals of Statistics 41(2):536-567, 2013.
+    '''
+    def __init__(self,data,k=1):
+        '''Initialises an `GaussianL0` object.
+
+        Args:
+         data (ContinuousData): data
+         k (float): Tuning parameter for L0 penalty. Called "lambda^2" in van de Geer and Buehlmann
+        '''
+        _AbsLLPenalised.__init__(self,data)
+        self._k = k
+
+    def score(self,child,parents):
+        '''
+        Return the fitted Gaussian AIC score for `child` having `parents`, 
+        and also upper bound on the score for proper supersets of `parents`.
+
+        Args:
+         child (str): The child variable
+         parents (iter): The parent variables
+
+        Returns:
+         tuple: The Gaussian AIC local score for the given family and an upper bound on the local score 
+         for proper supersets of `parents`
+        '''
+        this_ll_score, numparams = self.ll_score(child,parents)
+        sb = numparams-2 # just count edges
+        return this_ll_score - self._k * sb, self._maxllh[child] - self._k * (sb+1)
 
 
 # END Classes for penalised log-likelihood 
