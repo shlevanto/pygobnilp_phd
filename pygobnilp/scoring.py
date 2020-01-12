@@ -817,17 +817,24 @@ class AbsGaussianLLScore(ContinuousData):
             preds = reg.predict(X)
             resids = y-preds
         sd = np.std(resids)
-        return norm.logpdf(resids,scale=sd).sum(), len(parents)+2
+        numparams = len(parents)+2  # include intercept AND sd (even though latter is not a free param)
+        if self._ls:
+            return -0.5 * (sd**2), numparams
+        else:
+            return norm.logpdf(resids,scale=sd).sum(), numparams
 
 class GaussianLL(AbsGaussianLLScore):
     
-    def __init__(self,data):
+    def __init__(self,data,ls=False):
         '''Initialises an `GaussianLL` object.
 
         Args:
          data (ContinuousData): data
+         ls (bool): Whether the unpenalised score should be -(1/2) * MSE, rather than log-likelihood
         '''
+        self._ls = ls
         _AbsLLPenalised.__init__(self,data)
+
 
     def score(self,child,parents):
         '''
@@ -847,13 +854,15 @@ class GaussianLL(AbsGaussianLLScore):
         
 class GaussianBIC(AbsGaussianLLScore):
 
-    def __init__(self,data,k=1):
+    def __init__(self,data,k=1,ls=False):
         '''Initialises an `GaussianBIC` object.
 
         Args:
          data (ContinuousData): data
          k (float): Multiply standard BIC penalty by this amount, so increase for sparser networks
+         ls (bool): Whether the unpenalised score should be -(1/2) * MSE, rather than log-likelihood
         '''
+        self._ls = ls
         _AbsLLPenalised.__init__(self,data)
         self._fn = k * 0.5 * log(self._data_length)  # Carvalho notation
 
@@ -876,15 +885,18 @@ class GaussianBIC(AbsGaussianLLScore):
 
 class GaussianAIC(AbsGaussianLLScore):
 
-    def __init__(self,data,k=1):
+    def __init__(self,data,k=1,ls=False):
         '''Initialises an `GaussianAIC` object.
 
         Args:
          data (ContinuousData): data
          k (float): Multiply standard AIC penalty by this amount, so increase for sparser networks
+         ls (bool): Whether the unpenalised score should be -(1/2) * MSE, rather than log-likelihood
         '''
+        self._ls = ls
         _AbsLLPenalised.__init__(self,data)
         self._k = k
+
 
     def score(self,child,parents):
         '''
@@ -907,13 +919,15 @@ class GaussianL0(AbsGaussianLLScore):
     Implements score discussed in "l_0-Penalized Maximum Likelihood for Sparse Directed
     Acyclic Graphs" by Sara van de Geer and Peter Buehlmann. Annals of Statistics 41(2):536-567, 2013.
     '''
-    def __init__(self,data,k=1):
+    def __init__(self,data,k=1,ls=False):
         '''Initialises an `GaussianL0` object.
 
         Args:
          data (ContinuousData): data
          k (float): Tuning parameter for L0 penalty. Called "lambda^2" in van de Geer and Buehlmann
+         ls (bool): Whether the unpenalised score should be -(1/2) * MSE, rather than log-likelihood
         '''
+        self._ls = ls
         _AbsLLPenalised.__init__(self,data)
         self._k = k
 
