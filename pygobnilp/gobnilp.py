@@ -28,11 +28,15 @@ import sys
 from math import log
 import warnings
 import subprocess
-
+import importlib
 
 from scipy.sparse.csgraph import floyd_warshall
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph._shortest_path import NegativeCycleError
+
+from networkx.drawing.nx_agraph import write_dot
+
+
 try:
     from gurobipy import Model, LinExpr, GRB
 except ImportError as e:
@@ -262,6 +266,20 @@ class BN(nx.DiGraph):
 
     At present this class only implements the structure of a BN - the DAG.
     '''
+
+    directed_arrow_text = '->'
+    '''Text to indicate a directed arrow'''
+    undirected_arrow_text = '-'
+    '''Text to indicate a undirected edge'''
+    directed_arrow_colour = 'red'
+    '''Colour to indicate a directed arrow'''
+    undirected_arrow_colour = 'black'
+    '''Colour to indicate a undirected edge'''
+    
+    _edge_arrow = {True:directed_arrow_text,False:undirected_arrow_text}
+    _edge_colour = {True:directed_arrow_colour,False:undirected_arrow_colour}
+
+    
     def __str__(self):
         '''
         Returns a textual representation of the BN
@@ -277,14 +295,82 @@ class BN(nx.DiGraph):
         res += self.bnlearn_modelstring()
         return res
 
-    def plot(self):
+    def plot(self,abbrev=True):
         '''
-        Generate and show a plot of the BN structure (DAG)
+        Generate and show a plot of the CPDAG/DAG
+
+        A DAG from the Markov equivalence class defined by the CPDAG is shown.
+        Reversible and irreversible arrows are distinguished by colour. By default
+        the colours are black and red, respectively.
+
+        Args:
+         abbrev (int) : Whether to abbreviate variable names to first 3 characters.
         '''
+        if abbrev:
+            ls = dict((x,x[:3]) for x in self.nodes)
+        else:
+            ls = None
+        try:
+            edge_colors = [self._edge_colour[compelled] for (u,v,compelled) in self.edges.data('compelled')]
+        except KeyError:
+            edge_colors = 'k'
         nx.draw_networkx(self,pos=nx.drawing.nx_agraph.graphviz_layout(self,prog='dot'),
-                         node_color="white",arrowsize=15)
+                         node_color="white",arrowsize=15,edge_color=edge_colors,labels=ls)
         plt.show()
 
+    # def plot(self):
+    #     '''
+    #     Generate and show a plot of the BN structure (DAG)
+    #     '''
+    #     nx.draw_networkx(self,pos=nx.drawing.nx_agraph.graphviz_layout(self,prog='dot'),
+    #                      node_color="white",arrowsize=15)
+    #     plt.show()
+
+    # def write_dot(self,path="bn.dot"):
+    #     '''Write a DAG to file in DOT format
+
+    #     Args:
+    #         path(str): The output file name
+    #     '''
+    #     # ignore buggy StopIteration exception
+    #     try:
+    #         write_dot(self,path)
+    #     except RuntimeError:
+    #         pass
+
+    def write_dot(self,path="bn.dot",show_dag_score=True,show_local_scores=True):
+        dotstr = "strict digraph {\n"
+        if show_dag_score:
+            dotstr += 'label = "Score = {0:g}"\n'.format(self.graph['score'])
+        for child, local_score in self.nodes(data='local_score'):
+            dotstr += child
+            if show_local_scores and local_score is not None:
+                dotstr += '[label = "{0} {1:g}"]'.format(child,local_score)
+            dotstr += ';\n'
+        for u, v, compelled in self.edges(data='compelled'):
+            dotstr += '{0}->{1}'.format(u,v)
+            if compelled == False:
+                dotstr += ' [dir=none]'
+            dotstr += ';\n'
+        dotstr += '}\n'
+        print(dotstr,file=open(path,'w'))
+    
+    def write_pdf(self,path="bn.pdf"):
+        '''Write a DAG to a PDF file 
+
+        Note that this method also creates a DOT file called "tmpbn.dot" which
+        is not deleted by this method.
+
+        Args:
+            path(str): The output file name
+
+        Raises:
+         FileNotFoundError: If the 'dot' executable is not available.
+        '''
+        self.write_dot('tmpbn.dot')
+        subprocess.call(['dot', '-Tpdf', 'tmpbn.dot', '-o', path])
+
+        
     def bnlearn_modelstring(self):
         '''Return a string representation suitable for bnlearn's "modelstring" function
         
@@ -437,6 +523,8 @@ class BN(nx.DiGraph):
         cpdag = CPDAG(nx.to_dict_of_dicts(self))
         for edge in self.edges():
             cpdag.edges[edge]['compelled'] = (edge in compelled)
+        cpdag.graph['score'] = self.graph['score']
+        #cpdag.nodes['local_score'] = self.nodes['local_score']
         return cpdag
 
 class CPDAG(BN):
@@ -446,17 +534,6 @@ class CPDAG(BN):
     A CPDAG represents a Markov equivalence class of DAGs. 
     '''
 
-    directed_arrow_text = '->'
-    '''Text to indicate a directed arrow'''
-    undirected_arrow_text = '-'
-    '''Text to indicate a undirected edge'''
-    directed_arrow_colour = 'red'
-    '''Colour to indicate a directed arrow'''
-    undirected_arrow_colour = 'black'
-    '''Colour to indicate a undirected edge'''
-    
-    _edge_arrow = {True:directed_arrow_text,False:undirected_arrow_text}
-    _edge_colour = {True:directed_arrow_colour,False:undirected_arrow_colour}
 
     def __str__(self):
         '''
@@ -472,25 +549,6 @@ class CPDAG(BN):
             res += '{0}{1}{2}\n'.format(u,self._edge_arrow[compelled],v)
         return res
 
-    def plot(self,abbrev=True):
-        '''
-        Generate and show a plot of the CPDAG
-
-        A DAG from the Markov equivalence class defined by the CPDAG is shown.
-        Reversible and irreversible arrows are distinguished by colour. By default
-        the colours are black and red, respectively.
-
-        Args:
-         abbrev (int) : Whether to abbreviate variable names to first 3 characters.
-        '''
-        if abbrev:
-            ls = dict((x,x[:3]) for x in self.nodes)
-        else:
-            ls = None
-        edge_colors = [self._edge_colour[compelled] for (u,v,compelled) in self.edges.data('compelled')]
-        nx.draw_networkx(self,pos=nx.drawing.nx_agraph.graphviz_layout(self,prog='dot'),
-                         node_color="white",arrowsize=15,edge_color=edge_colors,labels=ls)
-        plt.show()
 
     
 class Gobnilp(Model):
@@ -1808,45 +1866,12 @@ class Gobnilp(Model):
 
         '''
         families, fvs = self.sol2fvs()
-        dag = BN(score=self.PoolObjVal)
+        dag = BN(score=self.PoolObjVal)   
         for i, (child,parent_set) in enumerate(families):
             dag.add_node(child,local_score=fvs[i].Obj)
             dag.add_edges_from([(parent,child) for parent in parent_set])
         return dag
 
-    def write_dot(self,path="bn.dot"):
-        '''Write a learned DAG to file in DOT format
-
-        The solution corresponding to the current value of Gurobi parameter ``SolutionNumber``
-        is used.
-
-        Args:
-            path(str): The output file name
-        '''
-        from networkx.drawing.nx_agraph import write_dot
-        # ignore buggy StopIteration exception
-        try:
-            write_dot(self._to_nx(),path)
-        except RuntimeError:
-            pass
-        
-    def write_pdf(self,path="bn.pdf"):
-        '''Create a PDF document displaying a learned DAG
-
-        The solution corresponding to the current value of Gurobi parameter ``SolutionNumber``
-        is used.
-
-        Note that this method also creates a DOT file which
-        is not deleted by this method.
-
-        Args:
-            path(str): The output file name
-
-        Raises:
-         FileNotFoundError: If the 'dot' executable is not available.
-        '''
-        self.write_dot()
-        subprocess.call(['dot', '-Tpdf', 'bn.dot', '-o', path])
         
     # def print_simple_output(self):
     #     '''
@@ -3280,7 +3305,6 @@ class Gobnilp(Model):
 
         if consfile.endswith(".py"):
             consfile = consfile[:-3]
-        import importlib
         consmod = importlib.import_module(consfile)
         for constype in self.allowed_user_constypes:
             if hasattr(consmod,constype):
@@ -3340,14 +3364,14 @@ class Gobnilp(Model):
             
     def learn(self, data_source=None, varnames = None,
               header=True, comments='#', delimiter=None,
-              start='no data', end='output shown', data_type='discrete',
+              start='no data', end='output written', data_type='discrete',
               local_score_type='BDeu', local_score_fun=None,
               k=1, ls=False, standardise=False,
               arities = None, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
-              nsols=1, kbest=False, mec=False, consfile=None, pruning=True, edge_penalty=0.0, plot=True,
-              abbrev=True,output_file=None):
+              nsols=1, kbest=False, mec=False, consfile=None, settingsfile=None, pruning=True, edge_penalty=0.0, plot=True,
+              abbrev=True,output_stem=None,output_ext="pdf"):
         '''
         Args:
          data_source (str/array_like) : If not None, name of the file containing the discrete data or an array_like object.
@@ -3395,18 +3419,43 @@ class Gobnilp(Model):
          nsols (int): Number of BNs to learn
          kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
          mec (bool): Whether only one BN per Markov equivalence class should be feasible.
-         consfile (str/None): If not None then a file containing user constraints. Each such constraint is stored indefinitely and 
-          it is not possible to remove them.
+         consfile (str/None): If not None then a file (Python module) containing user constraints. 
+           Each such constraint is stored indefinitely and it is not possible to remove them.
+         settingsfile (str/None): If not None then a file (Python module) containing values for the arguments for this method.
+           Any such values override both default values and any values set by the method caller.
          pruning(bool): Whether not to include parent sets which cannot be optimal when acyclicity is the only constraint.
          edge_penalty(float): The local score for a parent set with `p` parents will be reduced by `p*edge_penalty`.
          plot (bool): Whether to plot learned BNs/CPDAGs once they have been learned.
          abbrev (bool): When plotting whether to abbreviate variable names to the first 3 characters.
-         output_file (str/None): If not None, the name of a file to write the learned BN (the first one if several learned).
-            If the filename ends in '.dot' then a dot file is created. If the filename ends in '.pdf' then a dot file and a PDF is created. 
+         output_stem (str/None): If not None, then learned BNs will be written to "output_stem.ext" for each extension defined in 
+           `output_ext`. If multiple DAGs have been learned then output files are called "output_stem_0.ext",
+            "output_stem_1.ext" ...
+         output_ext (str): File extensions separated by ",". Only "pdf" and "dot" allowed at present.
 
         Raises:
          ValueError: If `start= 'no data'` but no data source or local scores source has been provided 
          '''
+        if settingsfile is not None:
+            if settingsfile.endswith(".py"):
+                settingsfile = settingsfile[:-3]
+            setmod = importlib.import_module(settingsfile)
+            argdkt = {}
+            argz = ('data_source', 'varnames',
+                    'header', 'comments', 'delimiter',
+                    'start', 'end', 'data_type',
+                    'local_score_type', 'local_score_fun',
+                    'k', 'ls', 'standardise',
+                    'arities', 'palim',
+                    'alpha', 'nu', 'alpha_mu', 'alpha_omega',
+                    'starts', 'local_scores_source',
+                    'nsols', 'kbest', 'mec', 'consfile',
+                    'pruning', 'edge_penalty', 'plot',
+                    'abbrev', 'output_stem', 'output_ext')
+            _local = locals()
+            for arg in argz:
+                argdkt[arg] = getattr(setmod,arg,_local[arg])
+            argdkt['settingsfile'] = None
+            return self.learn(**argdkt)
 
         # if called from R palim will be a float so this needs correcting
         if palim is not None:
@@ -3430,9 +3479,6 @@ class Gobnilp(Model):
 
         if data_type != 'discrete' and data_type != 'continuous':
             raise ValueError("Unrecognised data type: {0}. Should be either 'discrete' or 'continuous'".format(data_type))            
-
-        if not (output_file is None or output_file.endswith('.dot') or output_file.endswith('.pdf')):
-            raise ValueError("Unrecognised extension for output file extension {0}, should be '.pdf' or '.dot'".format(output_file))
 
         if data_source is not None and local_scores_source is not None:
             raise ValueError("Data source {0} and local scores source {1} both specified. Should specify only one.".format(
@@ -3535,10 +3581,12 @@ class Gobnilp(Model):
         if self.between(self._stage,'output shown',end):
             # Output (e.g. BNs, CPDAGs) not printed or plotted, so do that
             if self.learned_bns == ():
-                print('No feasible BN found')
+                print('No feasible BN found to show')
             else:
                 for i, dag in enumerate(self.learned_bns):
                     print(dag)
+                    if plot:
+                        dag.plot(abbrev=abbrev)
                     cpdag = self.learned_cpdags[i]
                     print(cpdag)
                     if plot:
@@ -3546,11 +3594,27 @@ class Gobnilp(Model):
             self._stage = 'output shown'
 
         if self.between(self._stage,'output written',end):
-            if output_file is not None:
-                if output_file.endswith('.dot'):
-                    self.write_dot(output_file)
-                elif output_file.endswith('.pdf'):
-                    self.write_pdf(output_file)
+            if output_stem is not None:
+                exts = frozenset(output_ext.split(','))
+                if self.learned_bns == ():
+                    print('No feasible BN found to write')
+                elif self.learned_bns == (dag):
+                    cpdag = self.learned_cpdags[0]
+                    if 'dot' in exts:
+                        dag.write_dot(output_stem+'.dot')
+                        cpdag.write_dot(output_stem+'_cpdag.dot')
+                    if 'pdf' in exts:
+                        dag.write_pdf(output_stem+'.pdf')
+                        cpdag.write_pdf(output_stem+'_cpdag.dot')
+                else:
+                    for i, dag in enumerate(self.learned_bns):
+                        cpdag = self.learned_cpdags[i]
+                        if 'dot' in exts:
+                            dag.write_dot('{0}_{1}.dot'.format(output_stem,i))
+                            cpdag.write_dot('{0}_{1}_cpdag.dot'.format(output_stem,i))
+                        if 'pdf' in exts:
+                            dag.write_pdf('{0}_{1}.pdf'.format(output_stem,i))
+                            cpdag.write_pdf('{0}_{1}_cpdag.pdf'.format(output_stem,i))
 
                     
     def make_cpdags(self):

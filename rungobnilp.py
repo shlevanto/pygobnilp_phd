@@ -39,7 +39,8 @@ parser.add_argument('--aic', action="store_true", help="The input consists of di
 parser.add_argument('--ll', action="store_true", help="The input consists of discrete data and LL scoring should be used")
 parser.add_argument('-v', '--verbose', action="count", default=0, help="How verbose to be")
 parser.add_argument('-g', '--gurobi_output', action="store_true", help="Whether to show Gurobi output")
-parser.add_argument('-o', '--output_file', help="PDF (or DOT) file for learned BN")
+parser.add_argument('-o', '--output_stem', help="file stem for learned BN")
+parser.add_argument('--output_ext', help="file types (dot,pdf) for output files")
 parser.add_argument('--consfile', help="Python module defining user constraints")
 parser.add_argument('--params', help="Gurobi parameter settings")
 parser.add_argument('--starts', help="Starting DAG(s) in bnlearn modelstring format")
@@ -58,7 +59,7 @@ model = Gobnilp(verbose=args.verbose,gurobi_output=args.gurobi_output,params=arg
 
 # arguments common to all types of learning
 argsdict = {}
-for arg in 'consfile', 'nsols', 'kbest', 'mec', 'palim', 'output_file':
+for arg in 'consfile', 'nsols', 'kbest', 'mec', 'palim', 'output_stem', 'output_ext':
     argsdict[arg] = getattr(args,arg)
 
 if args.scores:
