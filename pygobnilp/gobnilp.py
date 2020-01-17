@@ -34,7 +34,6 @@ from scipy.sparse.csgraph import floyd_warshall
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph._shortest_path import NegativeCycleError
 
-from networkx.drawing.nx_agraph import write_dot
 import pygraphviz as pvg
 
 try:
@@ -333,58 +332,6 @@ class BN(nx.DiGraph):
                          node_color="white",arrowsize=15,edge_color=edge_colors,labels=ls)
         plt.show()
 
-    # def plot(self):
-    #     '''
-    #     Generate and show a plot of the BN structure (DAG)
-    #     '''
-    #     nx.draw_networkx(self,pos=nx.drawing.nx_agraph.graphviz_layout(self,prog='dot'),
-    #                      node_color="white",arrowsize=15)
-    #     plt.show()
-
-    # def write_dot(self,path="bn.dot"):
-    #     '''Write a DAG to file in DOT format
-
-    #     Args:
-    #         path(str): The output file name
-    #     '''
-    #     # ignore buggy StopIteration exception
-    #     try:
-    #         write_dot(self,path)
-    #     except RuntimeError:
-    #         pass
-
-    def dotstr(self,show_dag_score=True,show_local_scores=False,cpdag=False):
-        '''Return the DOT language representation of the DAG
-
-        Args:
-         show_dag_score (bool): Whether to include the score of the BN
-         show_local_scores (bool): Whether to include the local score for each
-          node in the label for that node
-         cpdag (bool): If true and compelled edges have been identified then uncompelled
-          edges will be written as undirected.
-
-        See also:
-            :py:meth:`compute_compelled <pygobnilp.gobnilp.BN.compute_compelled>`,
-
-        Returns:
-         str: The DOT language representation of the DAG
-        '''
-        dotstr = "strict digraph {\n"
-        if show_dag_score:
-            dotstr += 'label = "Score = {0:g}"\n'.format(self.graph['score'])
-        for child, local_score in self.nodes(data='local_score'):
-            dotstr += child
-            if show_local_scores and local_score is not None:
-                dotstr += '[label = "{0} {1:g}"]'.format(child,local_score)
-            dotstr += ';\n'
-        for u, v, compelled in self.edges(data='compelled'):
-            dotstr += '{0}->{1}'.format(u,v)
-            if cpdag and compelled == False:
-                dotstr += ' [dir=none]'
-            dotstr += ';\n'
-        dotstr += '}\n'
-        return dotstr
-        #print(dotstr,file=open(path,'w'))
 
     def draw(self,output_stem,i=None,dag=True,cpdag=True,exts=('pdf',)):
         g = pvg.AGraph(strict=True,directed=True)
@@ -405,23 +352,6 @@ class BN(nx.DiGraph):
             for ext in exts:
                 g.draw(output_stem+m+ext,prog='dot')
 
-            
-    def write_pdf(self,path="bn.pdf"):
-        '''Write a DAG to a PDF file 
-
-        Note that this method also creates a DOT file called "tmpbn.dot" which
-        is not deleted by this method.
-
-        Args:
-            path(str): The output file name
-
-        Raises:
-         FileNotFoundError: If the 'dot' executable is not available.
-        '''
-        self.write_dot('tmpbn.dot')
-        subprocess.call(['dot', '-Tpdf', 'tmpbn.dot', '-o', path])
-
-        
     def bnlearn_modelstring(self):
         '''Return a string representation suitable for bnlearn's "modelstring" function
         
