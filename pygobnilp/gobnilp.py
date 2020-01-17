@@ -35,7 +35,7 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph._shortest_path import NegativeCycleError
 
 from networkx.drawing.nx_agraph import write_dot
-
+import pygraphviz as pvg
 
 try:
     from gurobipy import Model, LinExpr, GRB
@@ -295,6 +295,21 @@ class BN(nx.DiGraph):
         res += self.bnlearn_modelstring()
         return res
 
+    def cpdag_str(self):
+        '''
+        Returns a textual representation of the CPDAG
+
+        Returns: 
+         str: A textual representation of the CPDAG
+        '''
+
+        res = '**********\n'
+        res += 'CPDAG:\nVertices: {0}\n'.format(','.join(self.nodes))
+        for (u,v,compelled) in self.edges.data('compelled'):
+            res += '{0}{1}{2}\n'.format(u,self._edge_arrow[compelled],v)
+        return res
+
+    
     def plot(self,abbrev=True):
         '''
         Generate and show a plot of the CPDAG/DAG
@@ -338,7 +353,22 @@ class BN(nx.DiGraph):
     #     except RuntimeError:
     #         pass
 
-    def write_dot(self,path="bn.dot",show_dag_score=True,show_local_scores=True):
+    def dotstr(self,show_dag_score=True,show_local_scores=False,cpdag=False):
+        '''Return the DOT language representation of the DAG
+
+        Args:
+         show_dag_score (bool): Whether to include the score of the BN
+         show_local_scores (bool): Whether to include the local score for each
+          node in the label for that node
+         cpdag (bool): If true and compelled edges have been identified then uncompelled
+          edges will be written as undirected.
+
+        See also:
+            :py:meth:`compute_compelled <pygobnilp.gobnilp.BN.compute_compelled>`,
+
+        Returns:
+         str: The DOT language representation of the DAG
+        '''
         dotstr = "strict digraph {\n"
         if show_dag_score:
             dotstr += 'label = "Score = {0:g}"\n'.format(self.graph['score'])
@@ -349,12 +379,33 @@ class BN(nx.DiGraph):
             dotstr += ';\n'
         for u, v, compelled in self.edges(data='compelled'):
             dotstr += '{0}->{1}'.format(u,v)
-            if compelled == False:
+            if cpdag and compelled == False:
                 dotstr += ' [dir=none]'
             dotstr += ';\n'
         dotstr += '}\n'
-        print(dotstr,file=open(path,'w'))
-    
+        return dotstr
+        #print(dotstr,file=open(path,'w'))
+
+    def draw(self,output_stem,i=None,dag=True,cpdag=True,exts=('pdf',)):
+        g = pvg.AGraph(strict=True,directed=True)
+        g.add_nodes_from(self.nodes)
+        g.add_edges_from(self.edges)
+        if i is None:
+            m = '.'
+        else:
+            m = '_{0}.'.format(i)
+        if dag:
+            for ext in exts:
+                g.draw(output_stem+m+ext,prog='dot')
+        if cpdag:
+            m = '_cpdag'+m
+            for u, v, compelled in self.edges(data='compelled'):
+                if not compelled:
+                    g.get_edge(u,v).attr['dir'] = 'none'
+            for ext in exts:
+                g.draw(output_stem+m+ext,prog='dot')
+
+            
     def write_pdf(self,path="bn.pdf"):
         '''Write a DAG to a PDF file 
 
@@ -437,9 +488,12 @@ class BN(nx.DiGraph):
         '''
         return nx.to_numpy_matrix(self)
     
-    def cpdag(self,compelled=()):
-        '''Return the CPDAG representation of the Markov equivalence class of the input 
-        DAG
+    def compute_compelled(self,compelled=()):
+        '''Determines which directed edges are present in all DAGs Markov equivalent
+        to the given DAG (i.e. which are compelled to have this direction).
+        
+        Whether an edge has its direction compelled is given by the "compelled" attribute
+        of the edge.
         
         Starting from a initial set of edges whose direction is *compelled* to be that
         given in the DAG, 
@@ -459,10 +513,6 @@ class BN(nx.DiGraph):
         Args:
          compelled (iter): Edges to set as compelled in addition to those involved in
           *immoralities*. 
-        
-        Returns:
-         gobnilp.CPDAG : the CPDAG representation of the Markov equivalence class of the input 
-         DAG
         '''
 
         new_compelled = list(compelled)
@@ -518,14 +568,10 @@ class BN(nx.DiGraph):
                             self.connected(xx,y1) and
                             self.connected(xx,y2)):
                             new_compelled.append((xx,zz))
-
                             
-        cpdag = CPDAG(nx.to_dict_of_dicts(self))
         for edge in self.edges():
-            cpdag.edges[edge]['compelled'] = (edge in compelled)
-        cpdag.graph['score'] = self.graph['score']
-        #cpdag.nodes['local_score'] = self.nodes['local_score']
-        return cpdag
+            self.edges[edge]['compelled'] = (edge in compelled)
+
 
 class CPDAG(BN):
     '''
@@ -535,19 +581,6 @@ class CPDAG(BN):
     '''
 
 
-    def __str__(self):
-        '''
-        Returns a textual representation of the CPDAG
-
-        Returns: 
-         str: A textual representation of the CPDAG
-        '''
-
-        res = '**********\n'
-        res += 'CPDAG:\nVertices: {0}\n'.format(','.join(self.nodes))
-        for (u,v,compelled) in self.edges.data('compelled'):
-            res += '{0}{1}{2}\n'.format(u,self._edge_arrow[compelled],v)
-        return res
 
 
     
@@ -661,17 +694,7 @@ class Gobnilp(Model):
 
         '''
         return self._data.rawdata()
-    
-    @property
-    def learned_cpdags(self):
-        '''tuple: Learned CPDAGs
-        '''
-        try:
-            return self._learned_cpdags
-        except AttributeError:
-            raise Gobnilp.StageError(self.stage,"No CPDAGs learned/created yet.")            
 
-        
     @property
     def learned_bns(self):
         '''tuple: Learned BNs
@@ -687,13 +710,6 @@ class Gobnilp(Model):
         '''
         return self.learned_bns[0]
 
-    @property
-    def learned_cpdag(self):
-        '''CPDAG: Learned CPDAG (a maximally scoring one if several learned)
-        '''
-        return self.learned_cpdags[0]
-
-    
     @property
     def stage(self):
         '''str: Stage of solving
@@ -3371,7 +3387,7 @@ class Gobnilp(Model):
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
               nsols=1, kbest=False, mec=False, consfile=None, settingsfile=None, pruning=True, edge_penalty=0.0, plot=True,
-              abbrev=True,output_stem=None,output_ext="pdf"):
+              abbrev=True,output_stem=None,output_dag=True,output_cpdag=True,output_ext=("pdf",)):
         '''
         Args:
          data_source (str/array_like) : If not None, name of the file containing the discrete data or an array_like object.
@@ -3430,7 +3446,9 @@ class Gobnilp(Model):
          output_stem (str/None): If not None, then learned BNs will be written to "output_stem.ext" for each extension defined in 
            `output_ext`. If multiple DAGs have been learned then output files are called "output_stem_0.ext",
             "output_stem_1.ext" ...
-         output_ext (str): File extensions separated by ",". Only "pdf" and "dot" allowed at present.
+         output_dag (bool): Whether to write DAGs to any output files
+         output_cpdag (bool): Whether to write CPDAGs to any output files
+         output_ext (tuple): File extensions.
 
         Raises:
          ValueError: If `start= 'no data'` but no data source or local scores source has been provided 
@@ -3450,7 +3468,7 @@ class Gobnilp(Model):
                     'starts', 'local_scores_source',
                     'nsols', 'kbest', 'mec', 'consfile',
                     'pruning', 'edge_penalty', 'plot',
-                    'abbrev', 'output_stem', 'output_ext')
+                    'abbrev', 'output_stem', 'output_dag', 'output_cpdag', 'output_ext')
             _local = locals()
             for arg in argz:
                 argdkt[arg] = getattr(setmod,arg,_local[arg])
@@ -3515,7 +3533,7 @@ class Gobnilp(Model):
                     local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
                 else:
                     klass = globals()[local_score_type]
-                    if local_score_type.endswith('IC') or local_score_type == 'GaussianL0':
+                    if local_score_type.startswith('Gaussian'):
                         local_score_fun = klass(self._data,k=k,ls=ls).score
                     else:
                         local_score_fun = klass(self._data).score
@@ -3575,7 +3593,8 @@ class Gobnilp(Model):
 
         if self.between(self._stage,'CPDAG(s)',end):
             # no CPDAGs constructed (from BNs), so construct them
-            self.make_cpdags()
+            for bn in self.learned_bns:
+                bn.compute_compelled(compelled=self.obligatory_arrows)
             self._stage = 'CPDAG(s)'
 
         if self.between(self._stage,'output shown',end):
@@ -3585,43 +3604,21 @@ class Gobnilp(Model):
             else:
                 for i, dag in enumerate(self.learned_bns):
                     print(dag)
+                    print(dag.cpdag_str())
                     if plot:
                         dag.plot(abbrev=abbrev)
-                    cpdag = self.learned_cpdags[i]
-                    print(cpdag)
-                    if plot:
-                        cpdag.plot(abbrev=abbrev)
             self._stage = 'output shown'
 
         if self.between(self._stage,'output written',end):
             if output_stem is not None:
-                exts = frozenset(output_ext.split(','))
                 if self.learned_bns == ():
                     print('No feasible BN found to write')
-                elif self.learned_bns == (dag):
-                    cpdag = self.learned_cpdags[0]
-                    if 'dot' in exts:
-                        dag.write_dot(output_stem+'.dot')
-                        cpdag.write_dot(output_stem+'_cpdag.dot')
-                    if 'pdf' in exts:
-                        dag.write_pdf(output_stem+'.pdf')
-                        cpdag.write_pdf(output_stem+'_cpdag.dot')
+                elif len(self.learned_bns) == 1:
+                    self.learned_bns[0].draw(output_stem,None,output_dag,output_cpdag,output_ext)
                 else:
                     for i, dag in enumerate(self.learned_bns):
-                        cpdag = self.learned_cpdags[i]
-                        if 'dot' in exts:
-                            dag.write_dot('{0}_{1}.dot'.format(output_stem,i))
-                            cpdag.write_dot('{0}_{1}_cpdag.dot'.format(output_stem,i))
-                        if 'pdf' in exts:
-                            dag.write_pdf('{0}_{1}.pdf'.format(output_stem,i))
-                            cpdag.write_pdf('{0}_{1}_cpdag.pdf'.format(output_stem,i))
+                        dag.draw(output_stem,i,output_dag,output_cpdag,output_ext)
 
-                    
-    def make_cpdags(self):
-        '''Create a CPDAG for each learned BN
-        '''
-        self._learned_cpdags = tuple([dag.cpdag(compelled=self.obligatory_arrows) for dag in self.learned_bns])
-        
     class StageError(Exception):
         '''Raised when a method is called at the wrong stage of learning.
         '''
