@@ -59,7 +59,8 @@ model = Gobnilp(verbose=args.verbose,gurobi_output=args.gurobi_output,params=arg
 
 # arguments common to all types of learning
 argsdict = {}
-for arg in 'consfile', 'nsols', 'kbest', 'mec', 'palim', 'output_stem', 'output_ext':
+for arg in ('consfile', 'settingsfile', 'nsols', 'kbest', 'mec',
+            'palim', 'output_stem', 'output_ext', 'output_dag', 'output_cpdag'):
     argsdict[arg] = getattr(args,arg)
 
 if args.scores:

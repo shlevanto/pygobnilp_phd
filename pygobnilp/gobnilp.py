@@ -3311,13 +3311,13 @@ class Gobnilp(Model):
     def learn(self, data_source=None, varnames = None,
               header=True, comments='#', delimiter=None,
               start='no data', end='output written', data_type='discrete',
-              local_score_type='BDeu', local_score_fun=None,
+              score='BDeu', local_score_fun=None,
               k=1, ls=False, standardise=False,
               arities = None, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
               nsols=1, kbest=False, mec=False, consfile=None, settingsfile=None, pruning=True, edge_penalty=0.0, plot=True,
-              abbrev=True,output_stem=None,output_dag=True,output_cpdag=True,output_ext=("pdf",)):
+              abbrev=True,output_scores=None,output_stem=None,output_dag=True,output_cpdag=True,output_ext=("pdf",)):
         '''
         Args:
          data_source (str/array_like) : If not None, name of the file containing the discrete data or an array_like object.
@@ -3334,7 +3334,7 @@ class Gobnilp(Model):
           'MIP model', 'MIP solution', 'BN(s)' and 'CPDAG(s)'.
          end (str): End stage for learning. Possible values are the same as for `start`.
          data_type (str): Indicates the type of data. Must be either 'discrete' or 'continuous'
-         local_score_type (str): Name of scoring function used for computing local scores. Can be either "BDeu" (the default) or
+         score (str): Name of scoring function used for computing local scores. Can be either "BDeu" (the default) or
                                "BGe". This value is ignored if `local_score_fun` is not None.
          local_score_fun(fun/None): If not None a local score function such that `local_score_fun(child,parents)`
              computes `(score,ub)` where `score` is the desired local score for `child` having parentset `parents`
@@ -3373,6 +3373,7 @@ class Gobnilp(Model):
          edge_penalty(float): The local score for a parent set with `p` parents will be reduced by `p*edge_penalty`.
          plot (bool): Whether to plot learned BNs/CPDAGs once they have been learned.
          abbrev (bool): When plotting whether to abbreviate variable names to the first 3 characters.
+         output_scores (str/file/None): If not None, then a file or name of a file to write local scores
          output_stem (str/None): If not None, then learned BNs will be written to "output_stem.ext" for each extension defined in 
            `output_ext`. If multiple DAGs have been learned then output files are called "output_stem_0.ext",
             "output_stem_1.ext" ...
@@ -3391,14 +3392,14 @@ class Gobnilp(Model):
             argz = ('data_source', 'varnames',
                     'header', 'comments', 'delimiter',
                     'start', 'end', 'data_type',
-                    'local_score_type', 'local_score_fun',
+                    'score', 'local_score_fun',
                     'k', 'ls', 'standardise',
                     'arities', 'palim',
                     'alpha', 'nu', 'alpha_mu', 'alpha_omega',
                     'starts', 'local_scores_source',
                     'nsols', 'kbest', 'mec', 'consfile',
                     'pruning', 'edge_penalty', 'plot',
-                    'abbrev', 'output_stem', 'output_dag', 'output_cpdag', 'output_ext')
+                    'abbrev', 'output_scores', 'output_stem', 'output_dag', 'output_cpdag', 'output_ext')
             _local = locals()
             for arg in argz:
                 argdkt[arg] = getattr(setmod,arg,_local[arg])
@@ -3422,8 +3423,8 @@ class Gobnilp(Model):
             # OK, to perhaps rewind
             self._stage = start
         
-        if local_score_type not in self._known_local_scores:
-            raise ValueError("Unrecognised scoring function: {0}".format(local_score_type))            
+        if score not in self._known_local_scores:
+            raise ValueError("Unrecognised scoring function: {0}".format(score))            
 
         if data_type != 'discrete' and data_type != 'continuous':
             raise ValueError("Unrecognised data type: {0}. Should be either 'discrete' or 'continuous'".format(data_type))            
@@ -3457,13 +3458,13 @@ class Gobnilp(Model):
         if self.between(self._stage,'local scores',end):
             # no local scores yet, so compute them ...
             if local_scores_source is None:
-                if local_score_type == 'BDeu':
+                if score == 'BDeu':
                     local_score_fun = BDeu(self._data,alpha=alpha).bdeu_score
-                elif local_score_type == 'BGe':
+                elif score == 'BGe':
                     local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
                 else:
-                    klass = globals()[local_score_type]
-                    if local_score_type.startswith('Gaussian'):
+                    klass = globals()[score]
+                    if score.startswith('Gaussian'):
                         local_score_fun = klass(self._data,k=k,ls=ls).score
                     else:
                         local_score_fun = klass(self._data).score
@@ -3502,6 +3503,8 @@ class Gobnilp(Model):
                 self.input_user_conss(consfile)
                 user_conss_read = True
             #self._best_subip()
+            if output_scores is not None:
+                _write_local_scores(local_scores,output_scores)
             self._stage = 'local scores'
 
         if self.between(self._stage,'MIP model',end):
