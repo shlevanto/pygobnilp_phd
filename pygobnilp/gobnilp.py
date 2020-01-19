@@ -29,6 +29,7 @@ from math import log
 import warnings
 import subprocess
 import importlib
+import inspect
 
 from scipy.sparse.csgraph import floyd_warshall
 from scipy.sparse import csr_matrix
@@ -3389,20 +3390,10 @@ class Gobnilp(Model):
                 settingsfile = settingsfile[:-3]
             setmod = importlib.import_module(settingsfile)
             argdkt = {}
-            argz = ('data_source', 'varnames',
-                    'header', 'comments', 'delimiter',
-                    'start', 'end', 'data_type',
-                    'score', 'local_score_fun',
-                    'k', 'ls', 'standardise',
-                    'arities', 'palim',
-                    'alpha', 'nu', 'alpha_mu', 'alpha_omega',
-                    'starts', 'local_scores_source',
-                    'nsols', 'kbest', 'mec', 'consfile',
-                    'pruning', 'edge_penalty', 'plot',
-                    'abbrev', 'output_scores', 'output_stem', 'output_dag', 'output_cpdag', 'output_ext')
             _local = locals()
-            for arg in argz:
-                argdkt[arg] = getattr(setmod,arg,_local[arg])
+            for arg in inspect.getfullargspec(Gobnilp.learn).args:
+                if arg != 'self':
+                    argdkt[arg] = getattr(setmod,arg,_local[arg])
             argdkt['settingsfile'] = None
             return self.learn(**argdkt)
 
@@ -3499,12 +3490,12 @@ class Gobnilp(Model):
                             scoredparentsets[parentset] = skore - (edge_penalty * len(parentset))
 
             self.input_local_scores(local_scores)
-            if not user_conss_read:
+            if not user_conss_read: #won't have been read in yet if learning from scores rather than data  
                 self.input_user_conss(consfile)
                 user_conss_read = True
             #self._best_subip()
             if output_scores is not None:
-                _write_local_scores(local_scores,output_scores)
+                self.write_local_scores(output_scores)
             self._stage = 'local scores'
 
         if self.between(self._stage,'MIP model',end):
@@ -3525,7 +3516,7 @@ class Gobnilp(Model):
             self._stage = 'BN(s)'
 
         if self.between(self._stage,'CPDAG(s)',end):
-            # no CPDAGs constructed (from BNs), so construct them
+            # no CPDAGs constructed (from BNs), so 'construct' them by computing compelled edges
             for bn in self.learned_bns:
                 bn.compute_compelled(compelled=self.obligatory_arrows)
             self._stage = 'CPDAG(s)'
