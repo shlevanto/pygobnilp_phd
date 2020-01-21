@@ -111,5 +111,10 @@ del argdkt['scores']
 #convert string specifyint list of extensions to a list
 argdkt['output_ext'] = argdkt['output_ext'].split(',')
 
+#assume data is continuous if a score for continuous data is specified
+s = argdkt['score']
+if s == "BGe" or s.startswith('Gaussian'):
+    argdkt['data_type'] = 'continuous'
+
 # do learning
 Gobnilp().learn(**argdkt)
