@@ -3326,8 +3326,10 @@ class Gobnilp(Model):
           'MIP model', 'MIP solution', 'BN(s)' and 'CPDAG(s)'.
          end (str): End stage for learning. Possible values are the same as for `start`.
          data_type (str): Indicates the type of data. Must be either 'discrete' or 'continuous'
-         score (str): Name of scoring function used for computing local scores. Can be either "BDeu" (the default) or
-                               "BGe". This value is ignored if `local_score_fun` is not None.
+         score (str): Name of scoring function used for computing local scores. Must be one of the following:
+          BDeu, BGe,
+          DiscreteLL, DiscreteBIC, DiscreteAIC,
+          GaussianLL, GaussianBIC, GaussianAIC, GaussianL0. This value is ignored if `local_score_fun` is not None.
          local_score_fun (fun/None): If not None a local score function such that `local_score_fun(child,parents)`
              computes `(score,ub)` where `score` is the desired local score for `child` having parentset `parents`
              and `ub` is either `None` or an upper bound on the local score for `child` with any proper superset of `parents`
