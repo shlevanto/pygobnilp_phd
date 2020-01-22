@@ -27,7 +27,7 @@ from itertools import combinations
 
 from scipy.special import digamma, gammaln
 from sklearn.linear_model import LinearRegression
-from scipy.stats import norm
+from scipy.stats import norm, entropy
 
 import numpy as np
 import pandas as pd
@@ -667,6 +667,7 @@ class _AbsLLPenalised:
         '''
         self.__dict__.update(data.__dict__)
         self._maxllh = {}
+        self._entropy_cache = {}
         for i, v in enumerate(self._variables):
             self._maxllh[v] = self.ll_score(v,self._variables[:i]+self._variables[i+1:])[0]
 
@@ -703,7 +704,36 @@ class AbsDiscreteLLScore(DiscreteData):
         # number of parent insts will at least double if any added
         return this_ll_score - penalty, self._maxllh[child] - (penalty*2)
 
-    
+    def entropy(self,variables):
+        '''
+        Compute the entropy for the empirical distribution of some variables
+
+        Args:
+         variables (iter): Variables
+
+        Returns:
+         The entropy for the empirical distribution of `variables`
+        '''
+        vset = frozenset(variables)
+        try:
+            return self._entropy_cache[vset]
+        except KeyError:
+            cols = np.array(sorted([self._varidx[x] for x in variables]), dtype=np.uint32)
+            contab, strides = make_contab(self._unique_data, self._unique_data_counts, cols,
+                                          self._arities[cols], self._maxflatcontabsize)
+            if len(contab) == 0:
+                # need to resort to slower method, will move this to numba at some point
+                uniqs, uniq_idxs = np.unique(self._unique_data[:,cols],axis=0,return_inverse=True)
+                contab = np.zeros(len(uniqs),dtype=np.uint32)
+                unique_data_counts = self._unique_data_counts
+                for i in range(len(self._unique_data)):
+                    contab[uniq_idxs[i]] += unique_data_counts[i]
+
+            h = entropy(contab)
+            self._entropy_cache[vset] = h
+            return h
+
+        
     def ll_score(self,child,parents):
         '''
         The fitted log-likelihood score for `child` having `parents`
@@ -720,22 +750,14 @@ class AbsDiscreteLLScore(DiscreteData):
             (1) The fitted log-likelihood local score for the given family and 
             (2) the number of joint instantations of the parents (or None if too big)
         '''
-        family_cols = np.array(sorted([self._varidx[x] for x in list(parents)+[child]]), dtype=np.uint32)
-        contab, strides = make_contab(self._unique_data, self._unique_data_counts, family_cols,
-                                      self._arities[family_cols], self._maxflatcontabsize)
-
-        child_col = self._varidx[child]
-        child_arity = self._arities[child_col]
-        child_idx = tuple(family_cols).index(child_col) # where in family_cols is the col for the child
+        numinsts = 1
+        for p in parents:
+            numinsts *= self.arity(p)
+            if numinsts > self._maxflatcontabsize:
+                numinsts = None
+                break
             
-        if len(contab) > 0: #if successfully created standard flat contab
-            return _compute_ll_from_flat_contab(contab,strides,child_idx,child_arity), len(contab)/child_arity
-        else:
-            #have to make contab represented by unique insts
-            pa_cols = np.delete(family_cols,child_idx)
-            pa_uniqs, pa_idxs = np.unique(self._unique_data[:,pa_cols],axis=0,return_inverse=True) # numba cannot handle return_inverse arg
-            return _compute_ll_from_unique_contab(self._unique_data, self._unique_data_counts,
-                                                  len(pa_uniqs), pa_idxs, child_arity, child_col), None
+        return -self._data_length *(self.entropy(list(parents)+[child]) - self.entropy(parents)), numinsts
 
 class DiscreteLL(AbsDiscreteLLScore):
 
