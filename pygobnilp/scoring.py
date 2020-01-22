@@ -712,7 +712,8 @@ class AbsDiscreteLLScore(DiscreteData):
          variables (iter): Variables
 
         Returns:
-         The entropy for the empirical distribution of `variables`
+         The entropy for the empirical distribution of `variables` and the number of joint
+         instantiations of `variables` if not too big else None
         '''
         vset = frozenset(variables)
         try:
@@ -721,7 +722,9 @@ class AbsDiscreteLLScore(DiscreteData):
             cols = np.array(sorted([self._varidx[x] for x in variables]), dtype=np.uint32)
             contab, strides = make_contab(self._unique_data, self._unique_data_counts, cols,
                                           self._arities[cols], self._maxflatcontabsize)
-            if len(contab) == 0:
+            numinsts = len(contab)
+            if numinsts == 0:
+                numinsts = None
                 # need to resort to slower method, will move this to numba at some point
                 uniqs, uniq_idxs = np.unique(self._unique_data[:,cols],axis=0,return_inverse=True)
                 contab = np.zeros(len(uniqs),dtype=np.uint32)
@@ -730,8 +733,8 @@ class AbsDiscreteLLScore(DiscreteData):
                     contab[uniq_idxs[i]] += unique_data_counts[i]
 
             h = entropy(contab)
-            self._entropy_cache[vset] = h
-            return h
+            self._entropy_cache[vset] = h, numinsts
+            return h, numinsts
 
         
     def ll_score(self,child,parents):
@@ -750,14 +753,8 @@ class AbsDiscreteLLScore(DiscreteData):
             (1) The fitted log-likelihood local score for the given family and 
             (2) the number of joint instantations of the parents (or None if too big)
         '''
-        numinsts = 1
-        for p in parents:
-            numinsts *= self.arity(p)
-            if numinsts > self._maxflatcontabsize:
-                numinsts = None
-                break
-            
-        return -self._data_length *(self.entropy(list(parents)+[child]) - self.entropy(parents)), numinsts
+        pah, numinsts = self.entropy(parents)
+        return self._data_length * (pah - self.entropy(list(parents)+[child])[0]), numinsts
 
 class DiscreteLL(AbsDiscreteLLScore):
 
