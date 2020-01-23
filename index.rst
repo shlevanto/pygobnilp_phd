@@ -22,13 +22,6 @@ The BN class
 .. autoclass:: pygobnilp.gobnilp.BN
    :members:
       
-The CPDAG class
----------------
-
-.. autoclass:: pygobnilp.gobnilp.CPDAG
-   :members:	       
-   :show-inheritance:
-      
 The MN class
 ------------
 

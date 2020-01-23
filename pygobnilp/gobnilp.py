@@ -503,18 +503,6 @@ class BN(nx.DiGraph):
         for edge in self.edges():
             self.edges[edge]['compelled'] = (edge in compelled)
 
-
-class CPDAG(BN):
-    '''
-    Completed partially directed acyclic graphs.
-
-    A CPDAG represents a Markov equivalence class of DAGs. 
-    '''
-
-
-
-
-    
 class Gobnilp(Model):
     '''Subclass of `the Gurobi Model class 
     <https://www.gurobi.com/documentation/9.0/refman/py_model.html>`_ specific 
