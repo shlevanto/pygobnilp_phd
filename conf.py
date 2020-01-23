@@ -34,7 +34,7 @@ import sphinx_rtd_theme
 extensions = ['sphinx.ext.autodoc','sphinx.ext.napoleon',
               'sphinx.ext.autosummary','sphinx_rtd_theme']
 
-autodoc_mock_imports = ["networkx", "gurobipy", "numba"]
+autodoc_mock_imports = ["networkx", "gurobipy", "numba", "pygraphviz"]
 
 autodoc_default_options = {'special-members':None,
                            'exclude-members':' __weakref__'}
@@ -58,7 +58,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'pygobnilp'
-copyright = '2019, James Cussens'
+copyright = '2020, James Cussens'
 author = 'James Cussens'
 
 # The version info for the project you're documenting, acts as replacement for
