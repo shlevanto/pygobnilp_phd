@@ -34,7 +34,7 @@ import sphinx_rtd_theme
 extensions = ['sphinx.ext.autodoc','sphinx.ext.napoleon',
               'sphinx.ext.autosummary','sphinx_rtd_theme']
 
-autodoc_mock_imports = ["networkx", "gurobipy", "numba", "pygraphviz"]
+autodoc_mock_imports = ["networkx", "gurobipy", "numba", "pygraphviz", "sklearn"]
 
 autodoc_default_options = {'special-members':None,
                            'exclude-members':' __weakref__'}
