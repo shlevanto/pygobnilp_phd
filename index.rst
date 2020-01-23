@@ -36,63 +36,100 @@ The MN class
    :members:
 
 The Data class
------------------------------
+--------------
 
 .. autoclass:: pygobnilp.scoring.Data
    :members:
 
       
 The DiscreteData class
------------------------------
+----------------------
 
 .. autoclass:: pygobnilp.scoring.DiscreteData
    :members:
    :show-inheritance:
 
       
-The LLPenalised class
------------------------------
+The AbsDiscreteLLScore class
+----------------------------
 
-.. autoclass:: pygobnilp.scoring.LLPenalised
+.. autoclass:: pygobnilp.scoring.AbsDiscreteLLScore
    :members:
    :show-inheritance:
       
-The LL class
------------------------------
+The DiscreteLL class
+--------------------
 
-.. autoclass:: pygobnilp.scoring.LL
+.. autoclass:: pygobnilp.scoring.DiscreteLL
    :members:
    :show-inheritance:
       
-The BIC class
------------------------------
+The DiscreteBIC class
+---------------------
 
-.. autoclass:: pygobnilp.scoring.BIC
+.. autoclass:: pygobnilp.scoring.DiscreteBIC
    :members:
    :show-inheritance:
 
       
-The AIC class
------------------------------
+The DiscreteAIC class
+---------------------
 
-.. autoclass:: pygobnilp.scoring.AIC
+.. autoclass:: pygobnilp.scoring.DiscreteAIC
    :members:
    :show-inheritance:
 
 The BDeu class
------------------------------
+--------------
 
 .. autoclass:: pygobnilp.scoring.BDeu
    :members:
    :show-inheritance:
 
 The ContinuousData class
------------------------------
+------------------------
 
 .. autoclass:: pygobnilp.scoring.ContinuousData
    :members:
    :show-inheritance:
+
+The AbsGaussianLLScore class
+----------------------------
+
+.. autoclass:: pygobnilp.scoring.AbsGaussianLLScore
+   :members:
+   :show-inheritance:
+
+The GaussianLL class
+---------------------
+
+.. autoclass:: pygobnilp.scoring.GaussianLL
+   :members:
+   :show-inheritance:
+
+The GaussianBIC class
+---------------------
+
+.. autoclass:: pygobnilp.scoring.GaussianBIC
+   :members:
+   :show-inheritance:
+
       
+The GaussianAIC class
+---------------------
+
+.. autoclass:: pygobnilp.scoring.GaussianAIC
+   :members:
+   :show-inheritance:
+
+The GaussianL0 class
+--------------------
+
+.. autoclass:: pygobnilp.scoring.GaussianL0
+   :members:
+   :show-inheritance:
+
+
 The BGe class
 -------------
 

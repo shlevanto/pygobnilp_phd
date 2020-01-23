@@ -3370,7 +3370,7 @@ class Gobnilp(Model):
          output_scores (str/file/None): If not None, then a file or name of a file to write local scores
          output_stem (str/None): If not None, then learned BNs will be written to "output_stem.ext" for each extension defined in 
            `output_ext`. If multiple DAGs have been learned then output files are called "output_stem_0.ext",
-            "output_stem_1.ext" ...
+           "output_stem_1.ext" ...
          output_dag (bool): Whether to write DAGs to any output files
          output_cpdag (bool): Whether to write CPDAGs to any output files
          output_ext (tuple): File extensions.
