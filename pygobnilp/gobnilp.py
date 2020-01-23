@@ -963,13 +963,6 @@ class Gobnilp(Model):
     
     def __init__(self):
         '''Initialise a Gobnilp object
-
-        Args:
-
-
-         params (str/None) : If not None, Gurobi parameter settings for parameters as a single string where each
-          parameter setting is of the form ParamName=Value and different settings are separated by a space. For example,
-          "TimeLimit=3 Heuristics=0.2 NodefileDir=tmpdir"
         '''
         super(Gobnilp,self).__init__("gobnilp")
         
@@ -2642,7 +2635,7 @@ class Gobnilp(Model):
 
     def _lazy_user_constraints(self,digraph):
         '''
-        forbidden and obligatory ancestors the only lazy constraints at present
+        forbidden and obligatory ancestors and obligatory conditional independence are the only lazy constraints at present
         '''
         for (an,de) in self.forbidden_ancestors:
             try:
