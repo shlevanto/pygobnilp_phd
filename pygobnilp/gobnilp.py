@@ -3230,6 +3230,7 @@ class Gobnilp(Model):
         if consfile.endswith(".py"):
             consfile = consfile[:-3]
         consmod = importlib.import_module(consfile)
+        importlib.reload(consmod) # in case user just edited!
         for constype in self.allowed_user_constypes:
             if hasattr(consmod,constype):
                 # construct name of appropriate function
@@ -3498,6 +3499,7 @@ class Gobnilp(Model):
                 if consfile.endswith(".py"):
                     consfile = consfile[:-3]
                 consmod = importlib.import_module(consfile)
+                importlib.reload(consmod) # in case user just edited!
                 try:
                     consmod.mipconss(self)
                 except AttributeError:
