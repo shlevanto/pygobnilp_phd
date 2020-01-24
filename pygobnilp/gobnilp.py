@@ -293,6 +293,8 @@ class BN(nx.DiGraph):
         res += '**********\n'
         res += 'bnlearn modelstring = \n'
         res += self.bnlearn_modelstring()
+        if self.graph['score'] != self.graph['mipobj']:
+            res += '\n\n ** MIP solution objective is {0} ** \n'.format(self.graph['mipobj']) 
         return res
 
     def cpdag_str(self):
@@ -1784,10 +1786,14 @@ class Gobnilp(Model):
 
         '''
         families, fvs = self.sol2fvs()
-        dag = BN(score=self.PoolObjVal)   
+        dag = BN(mipobj=self.PoolObjVal)
+        bnscore = 0.0
         for i, (child,parent_set) in enumerate(families):
-            dag.add_node(child,local_score=fvs[i].Obj)
+            ls = fvs[i].Obj
+            bnscore += ls
+            dag.add_node(child,local_score=ls)
             dag.add_edges_from([(parent,child) for parent in parent_set])
+        dag.graph['score'] = bnscore
         return dag
 
         
@@ -3487,6 +3493,16 @@ class Gobnilp(Model):
             # no MIP model yet, (or we wish to throw away the existing one) so make one
             self.clear_basic_model()
             self.make_basic_model(nsols=nsols, kbest=kbest, mec=mec)
+            # call 'mipconss' if it is defined
+            if consfile is not None:
+                if consfile.endswith(".py"):
+                    consfile = consfile[:-3]
+                consmod = importlib.import_module(consfile)
+                try:
+                    consmod.mipconss(self)
+                except AttributeError:
+                    pass
+
             self._stage = 'MIP model'
 
         if self.between(self._stage,'MIP solution',end):
