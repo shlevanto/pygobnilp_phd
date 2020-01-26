@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 # *   GOBNILP (Python version) Copyright (C) 2019 James Cussens           *
 # *                                                                       *

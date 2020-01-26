@@ -20,12 +20,14 @@ To use the Python implementation of GOBNILP it is assumed that you
 have Anaconda Python installed as well as Gurobi. One easy way to
 achieve this is to install both using [these
 instructions](https://www.gurobi.com/get-anaconda/) provided by
-Gurobi. You also need to install Numba (this be done easily using
-Conda). Once you have done this you just need to grab the Python files
-in this gt repo and you are good to go.
+Gurobi. You also need to install the numba and pygraphviz Python packages (this be done easily using
+Conda). pygraphviz requires [GraphViz](http://www.graphviz.org/) to be installed.
+Once you have done all this you just need to grab the Python files
+in this git repo and you are good to go.
 
-Here are some example of running the Python implementation using the
-data files in the test_data_and_scores directory. The discrete data
+Here are some example of running the Python implementation using the command line
+script rungobnilp.py and 
+data files in the data directory. The discrete data
 files have the following format: the first line gives the names of the
 variables, the second line gives the arity of each variable (i.e. how
 many values each can take) and the remaining lines are the data
@@ -33,23 +35,23 @@ values. Values are separated by spaces.
 
 Running with default settings:  
 
-`python rungobnilp.py test_data_and_scores/asia_10000.dat`
+`python rungobnilp.py data/asia_10000.dat`
 
 Finding the 4 best BNs (with the default limit, 3, on the size of
 parent sets):
 
-`python rungobnilp.py --nopruning --kbest --nsols 4 test_data_and_scores/asia_10000.dat`
+`python rungobnilp.py --nopruning --kbest --nsols 4 data/asia_10000.dat`
 
 Finding the 4 best BNs (with the default limit, 3, on the size of
 parent sets) and where only one BN for each Markov equivalence class
 is allowed:
 
-`python rungobnilp.py --nopruning --mec --kbest --nsols 4 test_data_and_scores/asia_10000.dat`
+`python rungobnilp.py --nopruning --mec --kbest --nsols 4 data/asia_10000.dat`
 
 Finding the 4 best BNs with no limit on parent set size and where only
 one BN for each Markov equivalence class is allowed:
 
-`python rungobnilp.py --nopruning --mec --kbest --nsols 4 --palim 999 test_data_and_scores/asia_10000.dat`
+`python rungobnilp.py --nopruning --mec --kbest --nsols 4 --palim 999 data/asia_10000.dat`
 
 In the examples above where the goal was to find the 'k best' BNs
 (subject to various constraints), it was necessary to use
@@ -64,7 +66,7 @@ turned off to ensure correct results.
 The limit on parent set size is an important parameter. Note that its
 default value is 3. Raising this value will slow down learning but may
 lead to a higher scoring BN. For example, doing `python
-rungobnilp.py --palim 4 test_data_and_scores/alarm_100.dat` finds
+rungobnilp.py --palim 4 data/alarm_100.dat` finds
 a higher scoring network than using '--palim 3', and does not take too
 long.  Raising to '--palim 5' finds a better (well, higher scoring)
 network, but takes just under 100 seconds on my desktop.
@@ -74,12 +76,12 @@ from continuous data using BGe scoring. To do this use '--score BGe'
 on the command line. (The format for continuous data is similar to that
 for discrete data except there is no line for arity.) For example
 
-`python rungobnilp.py --score BGe test_data_and_scores/gaussian.dat`
+`python rungobnilp.py --score BGe data/gaussian.dat`
 
 or, to find a higher scoring Gaussian network (with BGe score
 -53258.9402):
 
-`python rungobnilp.py --score BGe -p 4 test_data_and_scores/gaussian.dat`
+`python rungobnilp.py --score BGe -p 4 data/gaussian.dat`
 
 The file `gaussian.dat` is from bnlearn where it is called
 `guassian.test`. See the [bnlearn
