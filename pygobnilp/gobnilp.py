@@ -1,6 +1,5 @@
-#!/usr/bin/env python
 #/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-# *   GOBNILP (Python version) Copyright (C) 2019 James Cussens           *
+# *   GOBNILP (Python version) Copyright (C) 2020 James Cussens           *
 # *                                                                       *
 # *   This program is free software; you can redistribute it and/or       *
 # *   modify it under the terms of the GNU General Public License as      *
@@ -279,7 +278,11 @@ class BN(nx.DiGraph):
     _edge_arrow = {True:directed_arrow_text,False:undirected_arrow_text}
     _edge_colour = {True:directed_arrow_colour,False:undirected_arrow_colour}
 
-    
+
+    # if |(graph_score - mip_score)/graph_score| > _flaggapval
+    # then the user gets a warning about this discrepancy
+    _flaggapval = 0.001
+   
     def __str__(self):
         '''
         Returns a textual representation of the BN
@@ -293,7 +296,9 @@ class BN(nx.DiGraph):
         res += '**********\n'
         res += 'bnlearn modelstring = \n'
         res += self.bnlearn_modelstring()
-        if self.graph['score'] != self.graph['mipobj']:
+        gs = self.graph['score']
+        ms = self.graph['mipobj']
+        if abs((gs-ms)/gs) > self._flaggapval:
             res += '\n\n ** MIP solution objective is {0} ** \n'.format(self.graph['mipobj']) 
         return res
 
@@ -3281,6 +3286,8 @@ class Gobnilp(Model):
         self.Params.PoolSolutions = nsols   # save k solutions
         if kbest:
             self.Params.PoolSearchMode = 2   # find k best solutions
+        else:
+            self.Params.PoolSearchMode = 1   # find k best solutions
         self.add_basic_constraints()
         if mec:
             self.add_constraints_one_dag_per_MEC()
