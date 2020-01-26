@@ -102,13 +102,13 @@ for opt in 'nopruning', 'noplot', 'noabbrev', 'nooutput_dag', 'nooutput_cpdag':
     argdkt[opt[2:]] = not argdkt[opt]
     del argdkt[opt]
     
-# interpret first argument as local scores file is --scores is used
+# interpret first argument as local scores file if --scores is used
 if argdkt['scores']:
     argdkt['local_scores_source'] = argdkt['data_source']
     del argdkt['data_source']
 del argdkt['scores']
 
-#convert string specifyint list of extensions to a list
+#convert string specifying list of extensions to a list
 argdkt['output_ext'] = argdkt['output_ext'].split(',')
 
 #assume data is continuous if a score for continuous data is specified
