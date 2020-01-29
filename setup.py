@@ -19,7 +19,7 @@ setuptools.setup(
     },
     install_requires = ['scipy','pygraphviz','matplotlib',
                         'networkx','pandas','numpy','scikit-learn',
-                        'numba'] #gurobipy not in pypi
+                        'numba'], #gurobipy not in pypi
     scripts = ['rungobnilp.py'],
     packages=['pygobnilp'],
     classifiers=[
