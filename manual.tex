@@ -214,13 +214,13 @@ arrows are those without this property (they are
 it.
 
 Discrete data is expected to have the following format (an example of
-which is given in Fig~\ref{fig:discretedat}:
+which is given in Fig~\ref{fig:discretedat}):
 \begin{enumerate}
 \item All fields should be separated by white space.
-\item The first line of the files should be the names of the
+\item The first line of the file should be the names of the
   variables.
 \item The second line should be the \emph{arities} of the variables,
-  where a variable's arity is the number of values it should have.
+  where a variable's arity is the number of values it can have.
 \item All lines after the second are datapoints where each datapoint
   is a sequence of (white space separated) values for the
   variables. Values can be any string, they do not have to be numbers.
@@ -343,36 +343,53 @@ given score subject to any constraints (such as parent set size
 limit). If you wish to learn several BNs you should use the -{}-nsols
 option. For example, this:
 \begin{verbatim}
-python rungobnilp.py --palim 99 discrete.dat --nsols 4
+python rungobnilp.py --palim 99 discrete.dat --nsols 4 
 \end{verbatim}
 learns the optimal BN for the given input---and 3 other BNs. However,
 in this approach there is no guarantee that the 3 additional BNs are
 the next 3 best BNs. They are just three BNs that Gurobi (the
-underlying MIP solver) could find quickly.
+underlying MIP solver) could find quickly. 
+
 
 To get, e.g.\ the top 4 BNs one must use the -{}-kbest flag:
 \begin{verbatim}
-python rungobnilp.py --palim 99 discrete.dat --nsols 4 --kbest
+python rungobnilp.py --palim 99 discrete.dat --nsols 4 --kbest --nopruning
 \end{verbatim}
+Note that in this example the flag -{}-nopruning has been set. By
+default, \pygobnilp{} will `prune away' choices of parent sets for BN
+nodes which cannot possibly occur in an optimal BN. This speeds up
+learning considerably. However, when searching for sub-optimal
+networks it is necessary to turn pruning off to ensure all possible
+BNs are available; this is what the -{}-nopruning flag does. A more
+sophisticated approach to finding high-scoring but sub-optimal BNs
+(based on `partial pruning') has been devised by
+\citet{liao19:_findin_all_bayes_networ_struc_factor_optim} but is not
+implemented in the current version of \pygobnilp.
+
+
 
 When learning multiple BNs one is typically only interested in finding
 one BN in each Markov equivalence class. To make this happen use the
 -{}-mec flag:
 
 \begin{verbatim}
-python rungobnilp.py --palim 99 discrete.dat --nsols 4 --kbest --mec
+python rungobnilp.py --palim 99 discrete.dat --nsols 4 --kbest --mec \
+                     --nopruning
 \end{verbatim}
 
 If you want to learn only BNs which are above a certain score then use
-the -{}-gurobi\_params optional parameter. Each argument supplied to 
--{}-gurobi\_params should be of the form param=val, where param is the name of
-a Gurobi Model parameter and val is an allowed value for that
-parameter. Cutoff is a Gurobi Model parameter that can be set to
-exclude any solution worse than the supplied value. So doing:
+the \mbox{-{}-gurobi\_params} optional parameter. Each argument
+supplied to -{}-gurobi\_params should be of the form param=val, where
+param is the name of a Gurobi Model parameter and val is an allowed
+value for that parameter. If `val' contains a `.' then it is
+interpreted as a float, otherwise if it looks like a number it is
+treated as an integer, failing that it is treated as a string. Cutoff
+is a Gurobi Model parameter that can be set to exclude any solution
+worse than the supplied value. So doing:
 
 \begin{verbatim}
 python rungobnilp.py --palim 99 discrete.dat --nsols 40 --mec \
-                 --gurobi_params Cutoff=-24050.0
+                     --nopruning --gurobi_params Cutoff=-24050.0
 \end{verbatim}
 
 will return at most 40 non-Markov equivalent BNs with a score better
@@ -389,8 +406,8 @@ BNs were returned.
 Internally \pygobnilp{} computes \emph{local scores} from the data
 before it starts the search for an optimal BN. There is a local score
 for each choice of parent set for each BN variable (although typically
-not all of these need be computed). \pygobnilp{} can learn BNs
-directly from pre-computed local score files. Suppose
+not all of these are computed due to pruning). \pygobnilp{} can learn
+BNs directly from pre-computed local score files. Suppose
 \verb+asia_10000.dat.3.jkl+ was a file containing local scores then
 \pygobnilp{} can take these local scores, rather than some data, as
 the input by using the -{}-scores parameter:
@@ -437,7 +454,7 @@ file format for local scores.
 \texttt{0 81}
 
 states that variable 0 has 81 candidate parent sets.
-\item The remaining lines in the section for a variable are local ('family') scores. Each such line starts with the score itself, the number of parents in the parent set and then the parents themselves, if any. So, for example,
+\item The remaining lines in the section for a variable are local (`family') scores. Each such line starts with the score itself, the number of parents in the parent set and then the parents themselves, if any. So, for example,
 
 \texttt{-106.565548505 3 13 15 11}
 
@@ -509,7 +526,11 @@ would learn a BN from the given dataset with no limit on parent set
 size and with output going to files with file stem bar. To use this
 approach you should consult the documentation on the \texttt{learn}
 method, which you can find here
-\url{https://pygobnilp.readthedocs.io/en/latest/#pygobnilp.gobnilp.Gobnilp.learn}.
+\url{https://pygobnilp.readthedocs.io/en/latest/#pygobnilp.gobnilp.Gobnilp.learn}. You
+can supply some values in the settings file and others on the command
+line if you wish. If you supply a value for some parameter (e.g.\
+palim) both in the settings file and on the command line, the value in
+the settings file is used.
 
 \subsection{Using a constraints file}
 \label{sec:constraints}
