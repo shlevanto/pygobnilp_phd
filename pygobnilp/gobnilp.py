@@ -2121,8 +2121,69 @@ class Gobnilp(Model):
         if self._verbose:
             print('%d absolute gen difference variables declared' % n, file=sys.stderr)
         self._mipvars['absolute_generation_difference'] = absgendiff
-                
-        
+
+
+    def add_variables_kbranching_ch(self,branch_priority=0):
+        '''Adds variables for recording max(0,|parents|-1) for each child
+
+        Args:
+            branch_priority (int): The Gurobi branching priority for the 
+             generation difference variables.
+        '''
+        kbranching_ch = {}
+        n = 0
+        common_ub = len(self.bn_variables)-2
+        for child in self.bn_variables:
+            v = self.addVar(
+                ub = common_ub,
+                lb = 0,
+                vtype=GRB.INTEGER)
+            v.BranchPriority = branch_priority
+            kbranching_ch[child] = v
+            n += 1
+        if self._verbose:
+            print('%d k-branching for child variables declared' % n, file=sys.stderr)
+        self._mipvars['k_branching_ch'] = kbranching_ch
+
+    def add_variables_kbranching(self,branch_priority=0,ub=None):
+        '''Adds a variable which is the number of arcs that must
+        be deleted for the learned DAG to be a *branching*. In a branching
+        each node has at most one parent
+
+        Args:
+            branch_priority (int): The Gurobi branching priority for the 
+             generation difference variables.
+            ub (int): An upper bound for this variable
+        '''
+        v = self.addVar(lb = 0, vtype=GRB.INTEGER)
+        if ub is not None:
+            v.ub = ub
+        v.BranchPriority = branch_priority
+        self._mipvars['k_branching'] = v
+        if self._verbose:
+            print('Added k-branching variable', file=sys.stderr)
+
+    def add_constraints_kbranching(self):
+        '''Adds constraints so that k-branching for child variables take the correct values
+        and they add up to the global k-branching variable
+        '''
+        kbranching_ch = self._mipvars['k_branching_ch']
+        family = self.family
+        n = 0
+        for child, kv in kbranching_ch.items():
+            coeffs = []
+            vs = []
+            for parentset, fv in family[child].items():
+                d = len(parentset) - 1
+                if d > 0:
+                   coeffs.append(d)
+                   vs.append(fv)
+            self.addConstr(kv, GRB.EQUAL, LinExpr(coeffs,vs))
+            n += 1
+        self.addConstr(self._mipvars['k_branching'], GRB.EQUAL, LinExpr([1.0]*len(kbranching_ch),list(kbranching_ch.values())))
+        if self._verbose:
+            print('%d k-branching constraints declared' % n, file=sys.stderr)
+
     def add_basic_variables(self):
         '''Adds the most useful Gurobi MIP variables
 
