@@ -2163,26 +2163,29 @@ class Gobnilp(Model):
         if self._verbose:
             print('Added k-branching variable', file=sys.stderr)
 
-    def add_constraints_kbranching(self):
-        '''Adds constraints so that k-branching for child variables take the correct values
-        and they add up to the global k-branching variable
+    def add_constraints_kbranching(self,k=0):
+        '''Adds a constraint so that the learned BN is a k-branching.
+        
+        A DAG is a branching if each child has at most one parent.
+        A DAG is a k-branching if there is a set of at most k edges
+        the removal of which results in a branching
+
+        Args:
+         k (int) : The value of k
         '''
-        kbranching_ch = self._mipvars['k_branching_ch']
-        family = self.family
-        n = 0
-        for child, kv in kbranching_ch.items():
-            coeffs = []
-            vs = []
-            for parentset, fv in family[child].items():
+        coeffs = []
+        vs = []
+        for parentsets_fv in self.family.values():
+            for parentset, fv in parentsets_fv.items():
                 d = len(parentset) - 1
-                if d > 0:
+                if d > k:
+                    fv.ub = 0
+                elif d > 0:
                    coeffs.append(d)
                    vs.append(fv)
-            self.addConstr(kv, GRB.EQUAL, LinExpr(coeffs,vs))
-            n += 1
-        self.addConstr(self._mipvars['k_branching'], GRB.EQUAL, LinExpr([1.0]*len(kbranching_ch),list(kbranching_ch.values())))
+        self.addConstr(LinExpr(coeffs,vs), GRB.LESS_EQUAL, k)
         if self._verbose:
-            print('%d k-branching constraints declared' % n, file=sys.stderr)
+            print('k-branching constraint declared', file=sys.stderr)
 
     def add_basic_variables(self):
         '''Adds the most useful Gurobi MIP variables
