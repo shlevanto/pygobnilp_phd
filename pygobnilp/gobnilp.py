@@ -2657,6 +2657,10 @@ class Gobnilp(Model):
             if self._enforcing_cycle_constraints:
                 self._find_weighted_cycles(cutting=True)
 
+            #self._find_undirected_weighted_cycles(cutting=True)
+
+            #self._polytree_subip(cutting=True)
+            
             # not helping!
             #if not cluster_res and self.cbGet(GRB.Callback.MIPNODE_NODCNT) == 0: 
             #    self._4bsubip(cutting=True)
@@ -2669,6 +2673,8 @@ class Gobnilp(Model):
                 self._user_enforcement_rounds_count > self._user_enforcement_rounds_limit):
                 return
 
+            #self._polytree_subip(cutting=False)
+            
             is_a_dag = True
             if self._enforcing_cluster_constraints:
                 #print(self.cbGet(GRB.Callback.MIPSOL_NODCNT))
@@ -3070,7 +3076,78 @@ class Gobnilp(Model):
                 self.cbLazy(LinExpr([1]*len(cutfvs),cutfvs), GRB.LESS_EQUAL, 2)
             #print('added 4B cut for {0}/{1} val is {2}'.format(abcd_set,cd_set,subip.PoolObjVal))
         return True
-                        
+
+    def _polytree_subip(self,cutting):
+        '''Find a group of BN nodes C such that sum of weighted undirected skeleton edges between them
+        exceeds |C|-1
+        '''
+        subip = Model("subip")
+        subip.Params.OutputFlag = 0
+        subip.ModelSense = -1
+        subip.Params.PoolSolutions = 20
+        subip.Params.PoolSearchMode = 2
+        # need to set this strictly above -1 to work
+        # in contradiction to gurobi documentation
+        subip.Params.Cutoff = self._subip_cutoff
+
+        if cutting:
+            subip.Params.TimeLimit = self._subip_cutting_timelimit
+        y = {}
+        for v in self.bn_variables:
+            y[v] = subip.addVar(vtype=GRB.BINARY,obj=-1)
+        adjacency = self.adjacency
+        pairvs = []
+        for pair, adj_var in adjacency.items():
+            if cutting:
+                val = self.cbGetNodeRel(adj_var)
+            else:
+                val = self.cbGetSolution(adj_var)
+            if val > 0:
+                v = subip.addVar(vtype=GRB.BINARY,obj=val)
+                pairvs.append((pair,v))
+
+        subip.update()
+
+        for pair, v in pairvs:
+            for w in pair:
+                subip.addConstr(v, GRB.LESS_EQUAL, y[w])                    
+
+        subip.addConstr(LinExpr([1]*len(y),list(y.values())), GRB.GREATER_EQUAL, 2)
+        subip.optimize()
+
+        # if no constraint found ...
+        if subip.Status == GRB.CUTOFF:
+            return False
+
+        if cutting:
+            # add all found cuts
+            nsols = subip.Solcount
+        else:
+            # only add one constraint
+            nsols = 1
+        for i in range(nsols):
+            subip.Params.SolutionNumber = i
+
+            cluster = []
+            for v, yv in list(y.items()):
+                if yv.Xn > 0.5:
+                    cluster.append(v)
+
+            #print(cluster)
+            vs = []
+            for v1, v2 in combinations(cluster,2):
+                try:
+                    vs.append(adjacency[frozenset([v1,v2])])
+                except KeyError:
+                    pass
+            #print(vs)
+            if cutting:
+                self.cbCut(LinExpr([1.0]*len(vs),vs), GRB.LESS_EQUAL, len(cluster)-1)
+            else:
+                self.cbLazy(LinExpr([1.0]*len(vs),vs), GRB.LESS_EQUAL, len(cluster)-1)
+        return True
+
+                    
     def _subip(self,cutting,max_cluster_size=None):
         '''Sub-IP for finding cluster cuts which separate the solution
         to the current linear relaxation.
@@ -3176,6 +3253,29 @@ class Gobnilp(Model):
         #self._find_weighted_cycles(cutting)
         return True
 
+    # UNFINISHED METHOD
+    # def _find_undirected_weighted_cycles(self,cutting):
+    #     adjacency = self.adjacency
+    #     g = nx.Graph()
+    #     for pair, adj_var in adjacency.items():
+    #         if cutting:
+    #             val = 1 - self.cbGetNodeRel(adj_var)
+    #         else:
+    #             val = 1 - self.cbGetSolution(adj_var)
+    #         if val < 1:
+    #             g.add_edge(*pair,weight=val)
+    #     mcb = nx.algorithms.cycles.minimum_cycle_basis(g,weight='weight')
+    #     print(mcb)
+    #     for b in mcb:
+    #         for i, v in enumerate(b):
+    #             for w in b[i+1:]:
+    #                 try:
+    #                     print(v,w,1-g[v][w]['weight'])
+    #                 except KeyError:
+    #                     pass
+    #         print()
+
+        
     def _find_weighted_cycles(self,cutting):
         data = []
         row = []
