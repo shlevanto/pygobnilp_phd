@@ -62,6 +62,7 @@ except ImportError as e:
 try:
     import networkx as nx
     from networkx.algorithms.moral import moral_graph
+    from networkx.algorithms.cycles import find_cycle
 except ImportError as e:
     print("Could not import networkx!")
     print(e)
@@ -999,9 +1000,11 @@ class Gobnilp(Model):
 
         self._enforcing_cluster_constraints = None
         self._enforcing_matroid_constraints = None
+        self._enforcing_polytree_constraints = None
         self._adding_cluster_cuts = None
         self._adding_matroid_cuts = None
-
+        self._adding_polytree_cuts = None
+        
         self._enforcing_cycle_constraints = None
         
         # attributes for one dag per mec constraint
@@ -2564,6 +2567,24 @@ class Gobnilp(Model):
         if self._verbose:
             print('(Lazy) "cycle" constraints in use', file=sys.stderr)
 
+    def add_constraints_polytree(self):
+        '''Adds the constraint that the DAG should be a polytree
+
+        Constraints (and cuts) ruling out cycles in the undirected skeletong are always added lazily, 
+        since there are exponentially many of them.
+
+        Cluster constraints are removed if this constraint added since ruling out cycles
+        in the undirected skeleton prevents any in the DAG.
+        '''
+        self._adding_polytree_cuts = True
+        self._enforcing_polytree_constraints = True
+
+        self._adding_cluster_cuts = False
+        self._enforcing_cluster_constraints = False
+        self.Params.LazyConstraints = 1
+        if self._verbose:
+            print('(Lazy) "polytree" constraints in use', file=sys.stderr)
+
             
     def add_constraints_clusters(self,cluster_cuts=True,matroid_cuts=False,matroid_constraints=False):
         '''Adds cluster constraints
@@ -2617,6 +2638,7 @@ class Gobnilp(Model):
         #self.add_constraints_arrow_total_order()
         #self.add_constraints_total_order()
         self.add_constraints_clusters()
+        #self.add_constraints_polytree()
         #self.add_constraints_cycles()
         #self.add_constraints_sumgen()
         #self.add_constraints_gen_arrow_indicator()
@@ -2657,9 +2679,8 @@ class Gobnilp(Model):
             if self._enforcing_cycle_constraints:
                 self._find_weighted_cycles(cutting=True)
 
-            #self._find_undirected_weighted_cycles(cutting=True)
-
-            #self._polytree_subip(cutting=True)
+            if self._adding_polytree_cuts:
+                self._polytree_subip()
             
             # not helping!
             #if not cluster_res and self.cbGet(GRB.Callback.MIPNODE_NODCNT) == 0: 
@@ -2673,8 +2694,6 @@ class Gobnilp(Model):
                 self._user_enforcement_rounds_count > self._user_enforcement_rounds_limit):
                 return
 
-            #self._polytree_subip(cutting=False)
-            
             is_a_dag = True
             if self._enforcing_cluster_constraints:
                 #print(self.cbGet(GRB.Callback.MIPSOL_NODCNT))
@@ -2688,6 +2707,8 @@ class Gobnilp(Model):
                 self._enforce_MEC_representative()
             if self._enforcing_cycle_constraints:
                 self._find_weighted_cycles(cutting=False)
+            if self._enforcing_polytree_constraints:
+                self._polytree_findcycle()
             #self._4bsubip(cutting=False)
 
     def _enforce_lazy_user_constraints(self):
@@ -3077,9 +3098,28 @@ class Gobnilp(Model):
             #print('added 4B cut for {0}/{1} val is {2}'.format(abcd_set,cd_set,subip.PoolObjVal))
         return True
 
-    def _polytree_subip(self,cutting):
-        '''Find a group of BN nodes C such that sum of weighted undirected skeleton edges between them
-        exceeds |C|-1
+    def _polytree_findcycle(self):
+        '''Attempt to find a cycle in the undirected skeleton. If one is found add a 
+        constraint to rule it out
+        '''
+        adjacency = self.adjacency
+        g = nx.Graph()
+        for pair, adj_var in adjacency.items():
+            if self.cbGetSolution(adj_var) > 0.5: # be careful with numerical precision
+                g.add_edge(*pair)
+        try:
+            cycle = find_cycle(g)
+            n = len(cycle)
+            self.cbLazy(LinExpr([1.0]*n,[adjacency[frozenset(pair)] for pair in cycle]), GRB.LESS_EQUAL, n-1)
+            return True
+        except nx.NetworkXNoCycle:
+            return False
+   
+
+        
+    def _polytree_subip(self):
+        '''Search for groups of BN nodes C such that sum of weighted undirected skeleton edges between them
+        exceeds |C|-1, adding cuts corresponding to such groups
         '''
         subip = Model("subip")
         subip.Params.OutputFlag = 0
@@ -3089,19 +3129,15 @@ class Gobnilp(Model):
         # need to set this strictly above -1 to work
         # in contradiction to gurobi documentation
         subip.Params.Cutoff = self._subip_cutoff
+        subip.Params.TimeLimit = self._subip_cutting_timelimit
 
-        if cutting:
-            subip.Params.TimeLimit = self._subip_cutting_timelimit
         y = {}
         for v in self.bn_variables:
             y[v] = subip.addVar(vtype=GRB.BINARY,obj=-1)
         adjacency = self.adjacency
         pairvs = []
         for pair, adj_var in adjacency.items():
-            if cutting:
-                val = self.cbGetNodeRel(adj_var)
-            else:
-                val = self.cbGetSolution(adj_var)
+            val = self.cbGetNodeRel(adj_var)
             if val > 0:
                 v = subip.addVar(vtype=GRB.BINARY,obj=val)
                 pairvs.append((pair,v))
@@ -3119,12 +3155,7 @@ class Gobnilp(Model):
         if subip.Status == GRB.CUTOFF:
             return False
 
-        if cutting:
-            # add all found cuts
-            nsols = subip.Solcount
-        else:
-            # only add one constraint
-            nsols = 1
+        nsols = subip.Solcount
         for i in range(nsols):
             subip.Params.SolutionNumber = i
 
@@ -3141,10 +3172,7 @@ class Gobnilp(Model):
                 except KeyError:
                     pass
             #print(vs)
-            if cutting:
-                self.cbCut(LinExpr([1.0]*len(vs),vs), GRB.LESS_EQUAL, len(cluster)-1)
-            else:
-                self.cbLazy(LinExpr([1.0]*len(vs),vs), GRB.LESS_EQUAL, len(cluster)-1)
+            self.cbCut(LinExpr([1.0]*len(vs),vs), GRB.LESS_EQUAL, len(cluster)-1)
         return True
 
                     
@@ -3430,7 +3458,7 @@ class Gobnilp(Model):
         self.remove(self.getConstrs())
         self.remove(self.getGenConstrs())
         
-    def make_basic_model(self, nsols=1, kbest=False, mec=False):
+    def make_basic_model(self, nsols=1, kbest=False, mec=False, polytree=False):
         '''
         Adds standard variables and constraints to the model, together with any user constraints
 
@@ -3441,6 +3469,7 @@ class Gobnilp(Model):
             nsols (int): Number of BNs to learn
             kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
             mec (bool): Whether only one BN per Markov equivalence class should be feasible.
+            polytree (bool): Whether the BN must be a polytree
 
         Raises:
          Gobnilp.StageError: If local scores are not yet available. 
@@ -3455,6 +3484,8 @@ class Gobnilp(Model):
         self.add_basic_constraints()
         if mec:
             self.add_constraints_one_dag_per_MEC()
+        if polytree:
+            self.add_constraints_polytree()
         # use any stored user constraints
         self._process_user_constraints()
             
@@ -3466,7 +3497,7 @@ class Gobnilp(Model):
               arities = None, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
-              nsols=1, kbest=False, mec=False, consfile=None, settingsfile=None, pruning=True, edge_penalty=0.0, plot=True,
+              nsols=1, kbest=False, mec=False, polytree=False, consfile=None, settingsfile=None, pruning=True, edge_penalty=0.0, plot=True,
               abbrev=True,output_scores=None,output_stem=None,output_dag=True,output_cpdag=True,output_ext=("pdf",),
               verbose=0,gurobi_output=False,**params):
         '''
@@ -3518,6 +3549,7 @@ class Gobnilp(Model):
          nsols (int): Number of BNs to learn
          kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
          mec (bool): Whether only one BN per Markov equivalence class should be feasible.
+         polytree (bool): Whether the BN must be a polytree.
          consfile (str/None): If not None then a file (Python module) containing user constraints. 
            Each such constraint is stored indefinitely and it is not possible to remove them.
          settingsfile (str/None): If not None then a file (Python module) containing values for the arguments for this method.
@@ -3664,7 +3696,7 @@ class Gobnilp(Model):
         if self.between(self._stage,'MIP model',end):
             # no MIP model yet, (or we wish to throw away the existing one) so make one
             self.clear_basic_model()
-            self.make_basic_model(nsols=nsols, kbest=kbest, mec=mec)
+            self.make_basic_model(nsols=nsols, kbest=kbest, mec=mec, polytree=polytree)
             # call 'mipconss' if it is defined
             if consfile is not None:
                 if consfile.endswith(".py"):

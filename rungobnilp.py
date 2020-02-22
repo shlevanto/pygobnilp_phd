@@ -63,6 +63,8 @@ parser.add_argument("--kbest", action="store_true",
                     help="Whether the nsols learned BNs should be a highest scoring set of nsols BNs.")
 parser.add_argument("--mec", action="store_true",
                     help="Make only one BN per Markov equivalence class feasible.")
+parser.add_argument("--polytree", action="store_true",
+                    help="Ensure that the learned DAG(s) is/are polytrees.")
 parser.add_argument("--consfile",
                     help="A file (Python module) containing user constraints.")
 parser.add_argument("--settingsfile",
