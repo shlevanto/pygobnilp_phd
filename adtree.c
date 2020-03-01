@@ -64,6 +64,7 @@ struct adtree_etc
    ADTREE* adtree;
    VALUE** data;
    ARITY* arity;
+   VARIABLE nvars;
 };
 typedef struct adtree_etc ADTREE_ETC;  /**< An AD tree with data and arities*/
 
@@ -241,6 +242,77 @@ void build_varynode(
 
 }
 
+static void print_varynode(VARYNODE* varynode, const VARIABLE variable, VARIABLE nvars, ARITY *arity);
+
+/** Print an AD tree (for debugging) */
+static
+void print_adtree(
+   ADTREE *adtree,          /**< pointer to ADTREE being deleted */
+   const VARIABLE variable, /**< first variable to specialise further on, if variable=nvars then there is none */
+   VARIABLE nvars,          /**< Number of variables in the data */
+   ARITY *arity             /**< arity[i] is the arity of variable i, */
+   )
+{
+   printf("adtree=%p,count=%d,firstvarspec=%d,leaflist=%p,children=%p\n",
+      (void*)adtree,adtree->count,variable,(void*)adtree->leaflist,(void*)adtree->children);
+   if( adtree->children != NULL )
+   {
+      VARIABLE var;
+      printf("%d children:\n",nvars-variable);
+      for( var = variable; var < nvars; ++var )
+      {
+         printf("varynode %p for variable %d\n", (void*)((adtree->children) + (var-variable)), var);
+      }
+      printf("\n");
+      for( var = variable; var < nvars; ++var )
+      {
+         /* printf("varynode for variable %d\n",var); */
+         print_varynode((adtree->children) + (var - variable),var,nvars,arity);
+      }
+   }
+   if( adtree->leaflist != NULL )
+   {
+      printf("leaflist of size %d\n",adtree->count);
+      /* COUNT j; */
+      /* printf("leaflist="); */
+      /* for( j = 0; j < adtree->count; ++j ) */
+      /*    printf("%d,",adtree->leaflist[j]); */
+      /* printf("END\n"); */
+   }
+  
+}
+
+/** Print an AD tree (for debugging) */
+static
+void print_varynode(
+   VARYNODE* varynode,      /**< varynode to print */
+   const VARIABLE variable, /**< which variable is being split */
+   VARIABLE nvars,          /**< Number of variables in the data */
+   ARITY *arity             /**< arity[i] is the arity of variable i, */
+   )
+{
+   const ARITY thisarity = arity[variable];
+   VALUE val;
+   
+   printf("varynode=%p,firstvarspec=%d,arity=%d,children=%p,mcv=%d\n",
+      (void*)varynode,variable,thisarity,(void*)varynode->children,varynode->mcv);
+   printf("%d children:\n",thisarity);
+   for( val = 0; val < thisarity; ++val )
+   {
+      printf("adtree %p for value %d\n", (void*)varynode->children[val], val);
+   }
+   printf("\n");
+   for( val = 0; val < thisarity; ++val )
+   {
+      printf("val=%d\n",val);
+      if( varynode->children[val] == NULL )
+         printf("NULL\n");
+      else
+         print_adtree(varynode->children[val],variable+1,nvars,arity);
+   }
+   printf("\n");
+}
+
 
 ADTREE* ret_adtree(
    const int rmin,            /**< if count below this then create a leaflist */
@@ -264,6 +336,9 @@ ADTREE* ret_adtree(
    
    build_adtree(adtree, 0, allrows, nrows, rmin, 0, &n_nodes,
       adtreedepthlim, adtreenodeslim, nvars, data, arity);
+
+   printf("Just made adtree.\n");
+   print_adtree(adtree,0,nvars,arity);
 
    return adtree;
 }
@@ -316,7 +391,8 @@ void* return_adtree(
    adtree_etc->adtree = adtree;
    adtree_etc->data = data2;
    adtree_etc->arity = arities;
-
+   adtree_etc->nvars = (VARIABLE) nvars;
+   
    /* for( i = 0; i < nvars; i++) */
    /*    printf("%d %d\n",i,adtree_etc->arity[i]); */
    
@@ -478,6 +554,8 @@ void makeflatcontab(
    VALUE val;
    FLATCONTAB flatcontabval;
    int i;
+
+   /* printf("foo %d\n",nvariables); */
    
    assert(adtree != NULL);
    assert(flatcontab != NULL);
@@ -485,7 +563,6 @@ void makeflatcontab(
    assert(arity != NULL);
    assert(nvariables == 0 || variables != NULL);
    assert(nvariables == 0 || strides != NULL);
-   assert(adtree->children != NULL || adtree->leaflist != NULL );
    assert(adtree->children == NULL || adtree->leaflist == NULL );
 
    if( nvariables == 0 )
@@ -540,6 +617,11 @@ void makecontab(
    int fsize;
    
    ADTREE_ETC* adtree_etc = (ADTREE_ETC*) v_adtree_etc;
+
+   assert(adtree_etc != NULL);
+   assert(adtree_etc->adtree != NULL);
+   assert(adtree_etc->data != NULL);
+   assert(adtree_etc->arity != NULL);
    
    /* compute size for a flat contingency table (and associated 'strides') */
    /* this size already given and has been computed in Python */
@@ -554,6 +636,10 @@ void makecontab(
    for(i = 0; i < flatcontabsize; i++)
       flatcontab[i] = 0;
 
+   printf("making flatcontab\n");
+   print_adtree(adtree_etc->adtree,0,adtree_etc->nvars,adtree_etc->arity);
+   printf("adtree printing done\n");
+   
    makeflatcontab(adtree_etc->adtree, 0, (VARIABLE*) variables, strides, nvariables, flatcontab,
       adtree_etc->data, adtree_etc->arity);
 
@@ -612,3 +698,4 @@ void del_adtree(
 {
    delete_adtree((ADTREE*) adtree, 0, (VARIABLE) nvars, (ARITY*) arity);
 }
+

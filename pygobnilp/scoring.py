@@ -33,6 +33,15 @@ import pandas as pd
 
 from numba import jit, njit
 
+try:
+    from .adtree import return_adtree, makecontab
+    adtree_available = True
+except ImportErorr as e:
+    adtree_available = False
+    print("C ADTree implementation unavailable.")
+    print(e)
+
+    
 # START functions for contabs
 
 @jit(nopython=True)
@@ -430,6 +439,10 @@ class DiscreteData(Data):
     """
     Complete discrete data
     """
+
+    _value_type = np.uint8
+    _arity_type = np.uint8
+    _count_type = np.uint32
     
     def __init__(self, data_source, varnames = None, arities = None):
         '''Initialises a `DiscreteData` object.
@@ -471,7 +484,7 @@ class DiscreteData(Data):
                 line = file.readline().rstrip()
                 while line[0] == '#':
                     line = file.readline().rstrip()
-                arities = np.array([int(x) for x in line.split()],dtype=np.uint32)
+                arities = np.array([int(x) for x in line.split()],dtype=self._arity_type)
 
                 for arity in arities:
                     if arity < 2:
@@ -497,19 +510,19 @@ class DiscreteData(Data):
                     # trick to create a function 'with memory'
                     converter_dkt[i] = Convert()
                 data = np.loadtxt(file,
-                                  dtype=np.uint32,
+                                  dtype=self._value_type,
                                   converters=converter_dkt,
                                   comments='#')
 
         elif type(data_source) == pd.DataFrame:
             data, arities, varnames = fromdataframe(data_source)
         else:
-            data = np.array(data_source,dtype=np.uint32)
+            data = np.array(data_source,dtype=self._value_type)
         self._data = data
         if arities is None:
-            self._arities = np.array([x+1 for x in data.max(axis=0)],dtype=np.uint32)
+            self._arities = np.array([x+1 for x in data.max(axis=0)],dtype=self._arity_type)
         else:
-            self._arities = np.array(arities,dtype=np.uint32)
+            self._arities = np.array(arities,dtype=self._arity_type)
 
         # ensure _variables is immutable _varidx is always correct.
         if varnames is None:
@@ -519,7 +532,7 @@ class DiscreteData(Data):
             self._variables = tuple(varnames)
 
         self._unique_data, counts = np.unique(self._data, axis=0, return_counts=True)
-        self._unique_data_counts = np.array(counts,np.uint32)
+        self._unique_data_counts = np.array(counts,self._count_type)
             
         self._maxflatcontabsize = 1000000
 
@@ -528,6 +541,12 @@ class DiscreteData(Data):
             self._varidx[v] = i
         self._data_length = data.shape[0]
 
+        # create AD tree, if possible
+        if adtree_available:
+            #dd = np.transpose(np.vstack((self._arities,self._data))).astype(np.uint8,casting='safe')
+            #print(dd)
+            self._adtree = return_adtree(10,100,100,np.transpose(np.vstack((self._arities,self._data))).astype(np.uint8,casting='safe'))
+        
         
     def data(self):
         '''
@@ -574,6 +593,42 @@ class DiscreteData(Data):
         cols = np.array([self._varidx[v] for v in variables], dtype=np.uint32)
         cols.sort() 
         return make_contab(self._unique_data,self._unique_data_counts,cols,self._arities[cols],self._maxflatcontabsize)[0]
+
+    def make_contab_adtree(self,variables):
+        '''
+        Compute a marginal contingency table from data or report
+        that the desired contingency table would be too big.
+        
+        Args:
+         variables (iter): The variables in the marginal contingency table.
+
+
+        Returns:
+         tuple: 1st element is of type ndarray: 
+          If the contingency table would have too many then the array is empty
+          (and the 2nd element of the tuple should be ignored)
+          else an array of counts of length equal to the product of the `arities`.
+          Counts are in lexicographic order of the joint instantiations of the columns (=variables)
+          2nd element: the 'strides' for each column (=variable)
+        '''
+        cols = np.array([self._varidx[v] for v in variables], dtype=np.uint32)
+        cols.sort()
+        p = len(cols)
+        idx = p-1
+        stride = 1
+        arities = self._arities[cols]
+        maxsize = self._maxflatcontabsize
+        strides = np.empty(p,dtype=np.uint32)
+        while idx > -1:
+            strides[idx] = stride
+            stride *= arities[idx]
+            if stride > maxsize:
+                return np.empty(0,dtype=np.uint32), strides
+            idx -= 1
+        print(variables,cols,int(stride),flush=True)
+        d = makecontab(self._adtree,cols,int(stride))
+        print(d,flush=True)
+        return d, strides
     
 class ContinuousData(Data):
     """
@@ -719,14 +774,22 @@ class AbsDiscreteLLScore(DiscreteData):
             return self._entropy_cache[vset]
         except KeyError:
             cols = np.array(sorted([self._varidx[x] for x in variables]), dtype=np.uint32)
+            if hasattr(self,'_adtree'):
+                contab, strides = self.make_contab_adtree(variables)
+            else:
+                contab, strides = make_contab(self._unique_data, self._unique_data_counts, cols,
+                                          self._arities[cols], self._maxflatcontabsize)
+            # do it anyway!
             contab, strides = make_contab(self._unique_data, self._unique_data_counts, cols,
                                           self._arities[cols], self._maxflatcontabsize)
+            print(contab)
+            
             numinsts = len(contab)
             if numinsts == 0:
                 numinsts = None
                 # need to resort to slower method, will move this to numba at some point
                 uniqs, uniq_idxs = np.unique(self._unique_data[:,cols],axis=0,return_inverse=True)
-                contab = np.zeros(len(uniqs),dtype=np.uint32)
+                contab = np.zeros(len(uniqs),dtype=self._count_type)
                 unique_data_counts = self._unique_data_counts
                 for i in range(len(self._unique_data)):
                     contab[uniq_idxs[i]] += unique_data_counts[i]
@@ -1086,7 +1149,7 @@ class BDeu(DiscreteData):
             cols = np.array(sorted([self._varidx[x] for x in list(variables)]), dtype=np.uint32)
             return compute_bdeu_component(
                 self._unique_data,self._unique_data_counts,cols,
-                np.array([self._arities[i] for i in cols], dtype=np.uint32),
+                np.array([self._arities[i] for i in cols], dtype=self._arity_type),
                 alpha,self._maxflatcontabsize)
 
 
