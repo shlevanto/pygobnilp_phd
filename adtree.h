@@ -12,8 +12,8 @@ void makecontab(
    void* v_adtree_etc,      /**< (Pointer to) the ADTREE */
    unsigned int* variables, /**< Variables in the sought contingency table (sorted) */
    int nvariables,          /**< Number of variables in the contingency table */
-   int flatcontabsize,
-   unsigned int* flatcontab
+   unsigned int* flatcontab,
+   int flatcontabsize
    );
 
 void del_adtree(

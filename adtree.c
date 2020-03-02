@@ -337,8 +337,8 @@ ADTREE* ret_adtree(
    build_adtree(adtree, 0, allrows, nrows, rmin, 0, &n_nodes,
       adtreedepthlim, adtreenodeslim, nvars, data, arity);
 
-   printf("Just made adtree.\n");
-   print_adtree(adtree,0,nvars,arity);
+   /* printf("Just made adtree.\n"); */
+   /* print_adtree(adtree,0,nvars,arity); */
 
    return adtree;
 }
@@ -354,20 +354,32 @@ void* return_adtree(
    )
 {
    ADTREE* adtree;
+   VALUE* mydata;
    VALUE** data2;
    int i;
    int j;
+   int k;
+   int l;
    ADTREE_ETC* adtree_etc = malloc(sizeof(ADTREE_ETC)); 
    ARITY* arities;
+   int ndatapoints = ndatapoints_plus_one - 1;
+   int data_length;
 
+   data_length = nvars * ndatapoints;
+   
+   mydata = (VALUE *) malloc(data_length * sizeof(VALUE));
    /* need data2[i][j] to be value of variable i for datapoint j */
    data2 = (VALUE **) malloc(nvars * sizeof(VALUE *));
-   for( i = 0; i < nvars; i++)
-      data2[i] = data + i*ndatapoints_plus_one + 1;
-
    arities = (ARITY *) malloc(nvars * sizeof(ARITY *));
+   j = 0; /* index for my data */
+   k = 0; /* index for incoming data (which includes arities) */
    for( i = 0; i < nvars; i++)
-      arities[i] = data[i*ndatapoints_plus_one];
+   {
+      arities[i] = data[k++];
+      data2[i] = mydata+j;
+      for( l = 0; l < ndatapoints; l++)
+         mydata[j++] = data[k++];
+   }
 
    /* for( i = 0; i < nrows; i++) */
    /* { */
@@ -437,8 +449,10 @@ void makeflatcontableaf(
        data0 = data[variables[0]]; 
 
       for( j = 0; j < count; ++j )
+      {
          flatcontab[stride0*data0[leaflist[j]]]++;
-
+         /* printf("d1 %d\n",flatcontab[stride0*data0[leaflist[j]]]); */
+      }
       break;
    }
    case 2:
@@ -453,6 +467,7 @@ void makeflatcontableaf(
         {
            row = leaflist[j];
            flatcontab[stride0*data0[row] + stride1*data1[row]]++;
+           /* printf("d2 %d\n",flatcontab[stride0*data0[row] + stride1*data1[row]]); */
         }
 
         break;
@@ -607,8 +622,8 @@ void makecontab(
    void* v_adtree_etc,       /**< (Pointer to) the ADTREE_ETC */
    unsigned int* variables,           /**< Variables in the sought contingency table (sorted) */
    int nvariables,            /**< Number of variables in the contingency table */
-   int flatcontabsize,
-   unsigned int* flatcontab
+   unsigned int* flatcontab,
+   int flatcontabsize
 )
 {
 
@@ -636,9 +651,14 @@ void makecontab(
    for(i = 0; i < flatcontabsize; i++)
       flatcontab[i] = 0;
 
-   printf("making flatcontab\n");
-   print_adtree(adtree_etc->adtree,0,adtree_etc->nvars,adtree_etc->arity);
-   printf("adtree printing done\n");
+   /* for(i = 0; i < flatcontabsize; i++) */
+   /*    printf("foo %d ",flatcontab[i]); */
+   /* printf("\n"); */
+
+   
+   printf("making flatcontab\n"); 
+   /* print_adtree(adtree_etc->adtree,0,adtree_etc->nvars,adtree_etc->arity); */
+   /* printf("adtree printing done\n"); */
    
    makeflatcontab(adtree_etc->adtree, 0, (VARIABLE*) variables, strides, nvariables, flatcontab,
       adtree_etc->data, adtree_etc->arity);

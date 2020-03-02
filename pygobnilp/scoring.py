@@ -611,7 +611,7 @@ class DiscreteData(Data):
           Counts are in lexicographic order of the joint instantiations of the columns (=variables)
           2nd element: the 'strides' for each column (=variable)
         '''
-        cols = np.array([self._varidx[v] for v in variables], dtype=np.uint32)
+        cols = np.array([self._varidx[v] for v in variables], dtype=np.uintc)
         cols.sort()
         p = len(cols)
         idx = p-1
@@ -626,9 +626,10 @@ class DiscreteData(Data):
                 return np.empty(0,dtype=np.uint32), strides
             idx -= 1
         print(variables,cols,int(stride),flush=True)
-        d = makecontab(self._adtree,cols,int(stride))
-        print(d,flush=True)
-        return d, strides
+        flatcontab = np.empty(stride,dtype=np.uintc)
+        makecontab(self._adtree,cols,flatcontab)
+        print(flatcontab,flush=True)
+        return flatcontab, strides
     
 class ContinuousData(Data):
     """
@@ -815,6 +816,7 @@ class AbsDiscreteLLScore(DiscreteData):
             (1) The fitted log-likelihood local score for the given family and 
             (2) the number of joint instantations of the parents (or None if too big)
         '''
+        self.entropy(list(parents)+[child])
         pah, numinsts = self.entropy(parents)
         return self._data_length * (pah - self.entropy(list(parents)+[child])[0]), numinsts
 
