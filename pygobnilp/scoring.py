@@ -40,7 +40,7 @@ except ImportErorr as e:
     adtree_available = False
     print("C ADTree implementation unavailable.")
     print(e)
-
+#adtree_available = False
     
 # START functions for contabs
 
@@ -545,7 +545,7 @@ class DiscreteData(Data):
         if adtree_available:
             #dd = np.transpose(np.vstack((self._arities,self._data))).astype(np.uint8,casting='safe')
             #print(dd)
-            self._adtree = return_adtree(10,100,100,np.transpose(np.vstack((self._arities,self._data))).astype(np.uint8,casting='safe'))
+            self._adtree = return_adtree(2000,1000,1000,np.transpose(np.vstack((self._arities,self._data))).astype(np.uint8,casting='safe'))
         
         
     def data(self):
@@ -625,10 +625,10 @@ class DiscreteData(Data):
             if stride > maxsize:
                 return np.empty(0,dtype=np.uint32), strides
             idx -= 1
-        print(variables,cols,int(stride),flush=True)
+        #print(variables,cols,int(stride),flush=True)
         flatcontab = np.empty(stride,dtype=np.uintc)
         makecontab(self._adtree,cols,flatcontab)
-        print(flatcontab,flush=True)
+        #print(flatcontab,flush=True)
         return flatcontab, strides
     
 class ContinuousData(Data):
@@ -775,15 +775,15 @@ class AbsDiscreteLLScore(DiscreteData):
             return self._entropy_cache[vset]
         except KeyError:
             cols = np.array(sorted([self._varidx[x] for x in variables]), dtype=np.uint32)
-            if hasattr(self,'_adtree'):
+            if adtree_available: # using global variable makes testing easier
                 contab, strides = self.make_contab_adtree(variables)
             else:
                 contab, strides = make_contab(self._unique_data, self._unique_data_counts, cols,
                                           self._arities[cols], self._maxflatcontabsize)
             # do it anyway!
-            contab, strides = make_contab(self._unique_data, self._unique_data_counts, cols,
-                                          self._arities[cols], self._maxflatcontabsize)
-            print(contab)
+            #contab, strides = make_contab(self._unique_data, self._unique_data_counts, cols,
+            #                              self._arities[cols], self._maxflatcontabsize)
+            #print(contab)
             
             numinsts = len(contab)
             if numinsts == 0:

@@ -656,7 +656,7 @@ void makecontab(
    /* printf("\n"); */
 
    
-   printf("making flatcontab\n"); 
+   /* printf("making flatcontab\n");  */
    /* print_adtree(adtree_etc->adtree,0,adtree_etc->nvars,adtree_etc->arity); */
    /* printf("adtree printing done\n"); */
    
