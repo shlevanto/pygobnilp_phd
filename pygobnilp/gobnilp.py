@@ -2548,10 +2548,14 @@ class Gobnilp(Model):
                         dkt[ci].append(fv)
                     except KeyError:
                         dkt[ci] = [fv]
-        adjacent = self.adjacent
+        adjacency = self.adjacency
         for ci, fvlist in list(dkt.items()):
             for pair in combinations(ci,2):
-                self.addConstr(LinExpr([1]*len(fvlist),fvlist), GRB.LESS_EQUAL, adjacent[frozenset(pair)])
+                try:
+                    rhs = adjacency[frozenset(pair)]
+                except KeyError:
+                    rhs = 0
+                self.addConstr(LinExpr([1]*len(fvlist),fvlist), GRB.LESS_EQUAL, rhs)
                 n += 1
         if self._verbose:
             print('%d constraints ruling out immoralities declared' % n, file=sys.stderr)
@@ -3458,7 +3462,7 @@ class Gobnilp(Model):
         self.remove(self.getConstrs())
         self.remove(self.getGenConstrs())
         
-    def make_basic_model(self, nsols=1, kbest=False, mec=False, polytree=False):
+    def make_basic_model(self, nsols=1, kbest=False, mec=False, polytree=False, chordal=False):
         '''
         Adds standard variables and constraints to the model, together with any user constraints
 
@@ -3470,6 +3474,7 @@ class Gobnilp(Model):
             kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
             mec (bool): Whether only one BN per Markov equivalence class should be feasible.
             polytree (bool): Whether the BN must be a polytree
+            chordal (bool): Whether the BN must contain no immoralities
 
         Raises:
          Gobnilp.StageError: If local scores are not yet available. 
@@ -3486,6 +3491,8 @@ class Gobnilp(Model):
             self.add_constraints_one_dag_per_MEC()
         if polytree:
             self.add_constraints_polytree()
+        if chordal:
+            self.add_constraints_chordal()
         # use any stored user constraints
         self._process_user_constraints()
             
@@ -3497,7 +3504,8 @@ class Gobnilp(Model):
               arities = None, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
-              nsols=1, kbest=False, mec=False, polytree=False, consfile=None, settingsfile=None, pruning=True, edge_penalty=0.0, plot=True,
+              nsols=1, kbest=False, mec=False, polytree=False, chordal = False, consfile=None, settingsfile=None,
+              pruning=True, edge_penalty=0.0, plot=True,
               abbrev=True,output_scores=None,output_stem=None,output_dag=True,output_cpdag=True,output_ext=("pdf",),
               verbose=0,gurobi_output=False,**params):
         '''
@@ -3550,6 +3558,7 @@ class Gobnilp(Model):
          kbest (bool): Whether the `nsols` learned BNs should be a highest scoring set of `nsols` BNs.
          mec (bool): Whether only one BN per Markov equivalence class should be feasible.
          polytree (bool): Whether the BN must be a polytree.
+         chordal (bool): Whether the BN represent a chordal undirected graph (i.e. have no immoralities).
          consfile (str/None): If not None then a file (Python module) containing user constraints. 
            Each such constraint is stored indefinitely and it is not possible to remove them.
          settingsfile (str/None): If not None then a file (Python module) containing values for the arguments for this method.
@@ -3696,7 +3705,7 @@ class Gobnilp(Model):
         if self.between(self._stage,'MIP model',end):
             # no MIP model yet, (or we wish to throw away the existing one) so make one
             self.clear_basic_model()
-            self.make_basic_model(nsols=nsols, kbest=kbest, mec=mec, polytree=polytree)
+            self.make_basic_model(nsols=nsols, kbest=kbest, mec=mec, polytree=polytree, chordal=chordal)
             # call 'mipconss' if it is defined
             if consfile is not None:
                 if consfile.endswith(".py"):

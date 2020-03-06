@@ -33,14 +33,15 @@ import pandas as pd
 
 from numba import jit, njit
 
-try:
-    from .adtree import return_adtree, makecontab
-    adtree_available = True
-except ImportErorr as e:
-    adtree_available = False
-    print("C ADTree implementation unavailable.")
-    print(e)
-#adtree_available = False
+# try:
+#     from .adtree import return_adtree, makecontab
+#     adtree_available = True
+# except ImportErorr as e:
+#     adtree_available = False
+#     print("C ADTree implementation unavailable.")
+#     print(e)
+
+adtree_available = False
     
 # START functions for contabs
 
