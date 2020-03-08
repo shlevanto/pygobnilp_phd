@@ -1155,22 +1155,19 @@ class BDeu(DiscreteData):
                 np.array([self._arities[i] for i in cols], dtype=self._arity_type),
                 alpha,self._maxflatcontabsize)
 
+    def _bdeu_score_component_cache(self,s):
+        s_set = frozenset(s)
+        try:
+            score_non_zero_count = self._cache[s_set]
+        except KeyError:
+            score_non_zero_count = self.bdeu_score_component(s_set)
+            self._cache[s_set] = score_non_zero_count
+        return score_non_zero_count
 
     def bdeu_score(self, child, parents):
 
-        parents_set = frozenset(parents)
-        try:
-            parent_score, _ = self._cache[parents_set]
-        except KeyError:
-            parent_score, non_zero_count = self.bdeu_score_component(parents)
-            self._cache[parents_set] = parent_score, non_zero_count
-
-        family_set = frozenset((child,)+parents)
-        try:
-            family_score, non_zero_count = self._cache[family_set]
-        except KeyError:
-            family_score, non_zero_count = self.bdeu_score_component((child,)+parents)
-            self._cache[family_set] = family_score, non_zero_count
+        parent_score, _ = self._bdeu_score_component_cache(parents)
+        family_score, non_zero_count = self._bdeu_score_component_cache((child,)+parents)
 
         simple_ub = -log(self.arity(child)) * non_zero_count
 
