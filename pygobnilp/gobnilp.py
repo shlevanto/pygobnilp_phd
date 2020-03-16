@@ -526,8 +526,20 @@ class Gobnilp(Model):
         "obligatory_ancestors","forbidden_ancestors",
         "obligatory_conditional_independences")
     '''
-    tuple: A tuple of strings giving the names of the functions users
-     can define to effect constraints.
+    tuple: Constraint types available to users. Used as key values
+     when providing constraints via a dictionary. For each constraint type
+     there is also a method for adding constraints whose name has add\_ as a prefix
+     and is in the singular.
+
+     See also:
+         :py:meth:`input_user_conss_from_dict <pygobnilp.gobnilp.Gobnilp.input_user_conss_from_dict>`
+         :py:meth:`add_forbidden_arrow <pygobnilp.gobnilp.Gobnilp.add_forbidden_arrow>`
+         :py:meth:`add_forbidden_adjacency <pygobnilp.gobnilp.Gobnilp.add_forbidden_adjacency>`
+         :py:meth:`add_obligatory_arrow <pygobnilp.gobnilp.Gobnilp.add_obligatory_arrow>`
+         :py:meth:`add_obligatory_adjacency <pygobnilp.gobnilp.Gobnilp.add_obligatory_adjacency>`
+         :py:meth:`add_obligatory_ancestor <pygobnilp.gobnilp.Gobnilp.add_obligatory_ancestor>`
+         :py:meth:`add_forbidden_ancestor <pygobnilp.gobnilp.Gobnilp.add_forbidden_ancestor>`
+         :py:meth:`add_obligatory_conditional_independence <pygobnilp.gobnilp.Gobnilp.add_obligatory_conditional_independence>`
     '''
 
     # each stage indicates what is available at that stage
@@ -1193,7 +1205,7 @@ class Gobnilp(Model):
         Raises:
          Gobnilp.UserConstraintError: If `a` or `b` is empty or the 3 sets are not 
           disjoint or the desired conditional independence is not possible
-         (given other constraints).
+          (given other constraints).
         '''
         if len(a) == 0 or len(b) == 0:
             raise Gobnilp.UserConstraintError(
@@ -3410,14 +3422,81 @@ class Gobnilp(Model):
 
         # update now to avoid user confusion
         self.update()
-    
+
+    def input_user_conss_from_dict(self,consdict):
+        '''Read user constraints from a dictionary and store them
+
+        The keys of the dictionary must be strings each of which should name an 
+        allowed constraint type.
+        Each value should be either (1) a sequence of items where each item is a sequence
+        (perhaps of length one) providing argument(s) to give to the corresponding "add\_.."
+        method. For example, dkt1 (below) would be an acceptable dictionary (assuming A, B, C, E and F) are
+        BN variables::
+
+         dkt1={'forbidden_adjacencies':[['AB'],['BC']],
+         'obligatory_arrows':[['E','F']]}
+
+        or (2) a function which, when given the Gobnilp object, returns a sequence of the same form as in case 1). For example, dkt2 would
+        be an acceptable dictionary::
+
+         def no_arrows(gobnilp):
+             return ([(v,w) for v in gobnilp.bn_variables for w in gobnilp.bn_variables if w!=v])
+         dkt2={'forbidden_arrows':no_arrows}
+
+        See also:
+         :py:attr:`allowed_use_constypes <pygobnilp.gobnilp.Gobnilp.allowed_user_constypes>`
+         :py:meth:`add_forbidden_arrow <pygobnilp.gobnilp.Gobnilp.add_forbidden_arrow>`
+         :py:meth:`add_forbidden_adjacency <pygobnilp.gobnilp.Gobnilp.add_forbidden_adjacency>`
+         :py:meth:`add_obligatory_arrow <pygobnilp.gobnilp.Gobnilp.add_obligatory_arrow>`
+         :py:meth:`add_obligatory_adjacency <pygobnilp.gobnilp.Gobnilp.add_obligatory_adjacency>`
+         :py:meth:`add_obligatory_ancestor <pygobnilp.gobnilp.Gobnilp.add_obligatory_ancestor>`
+         :py:meth:`add_forbidden_ancestor <pygobnilp.gobnilp.Gobnilp.add_forbidden_ancestor>`
+         :py:meth:`add_obligatory_conditional_independence <pygobnilp.gobnilp.Gobnilp.add_obligatory_conditional_independence>`
+
+        Such constraints can be read in prior to computation of local
+        scores, and can make that computation more efficient
+        
+        Args:
+           consdict (dict/None): Dictionary mapping the names of allowed constraint types
+            to constraints
+
+        Raises:
+         ValueError: If dictionary contains a key that is not (the name of) an allowed constraint type
+        '''
+        if consdict is None:
+            return
+        
+        for constype, obj in consdict.items():
+            if constype not in self.allowed_user_constypes:
+                raise ValueError("{0} not a recognised constraint type. Allowed constraint types are {1}".format(
+                    constype,self.allowed_user_constypes))
+
+            # construct method name and get bound method
+            if 'adjacenc' in constype:
+                fn = 'add_'+constype[:-3]+'y'
+            else:
+                fn = 'add_'+constype[:-1]
+            meth = getattr(self,fn)
+
+            # if a function use its return value when self as input
+            if callable(obj):
+                obj = obj(self)
+                
+            for cons in obj:
+                # adding constraint 'cons'
+                # number of positional arguments varies between
+                # different add_... functions, hence *cons
+                meth(*cons)
+
+
+                
     def input_user_conss(self,consfile):
         '''Read user constraints from a Python module and store them
         
         If `consfile` is None then this method returns silently.
         
         See also:
-           :py:attr:`allowed_use_contypes <pygobnilp.gobnilp.Gobnilp.allowed_user_constypes>`
+           :py:attr:`allowed_use_constypes <pygobnilp.gobnilp.Gobnilp.allowed_user_constypes>`
 
         Such constraints can be read in prior to computation of local
         scores, and can make that computation more efficient
@@ -3504,7 +3583,8 @@ class Gobnilp(Model):
               arities = None, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
-              nsols=1, kbest=False, mec=False, polytree=False, chordal = False, consfile=None, settingsfile=None,
+              nsols=1, kbest=False, mec=False, polytree=False, chordal = False, consfile=None,
+              consdict=None, settingsfile=None,
               pruning=True, edge_penalty=0.0, plot=True,
               abbrev=True,output_scores=None,output_stem=None,output_dag=True,output_cpdag=True,output_ext=("pdf",),
               verbose=0,gurobi_output=False,**params):
@@ -3561,6 +3641,8 @@ class Gobnilp(Model):
          chordal (bool): Whether the BN represent a chordal undirected graph (i.e. have no immoralities).
          consfile (str/None): If not None then a file (Python module) containing user constraints. 
            Each such constraint is stored indefinitely and it is not possible to remove them.
+         consdict (dict/None): If not None then a dictionary containing user constraints. 
+          The dictionary is used as input to :py:meth:`input_user_conss_from_dict <pygobnilp.gobnilp.Gobnilp.input_user_conss_from_dict>`
          settingsfile (str/None): If not None then a file (Python module) containing values for the arguments for this method.
            Any such values override both default values and any values set by the method caller.
          pruning(bool): Whether not to include parent sets which cannot be optimal when acyclicity is the only constraint.
@@ -3644,8 +3726,9 @@ class Gobnilp(Model):
                 # BN variables always in order
                 self._bn_variables = sorted(self._data.variables())
 
-                # now BN variables have been set can pull in constraints from consfile
+                # now BN variables have been set can pull in constraints from consfile and dict
                 self.input_user_conss(consfile)
+                self.input_user_conss_from_dict(consdict)
                 user_conss_read = True
             
             self._stage = 'data'
@@ -3696,6 +3779,7 @@ class Gobnilp(Model):
             self.input_local_scores(local_scores)
             if not user_conss_read: #won't have been read in yet if learning from scores rather than data  
                 self.input_user_conss(consfile)
+                self.input_user_conss_from_dict(consdict)
                 user_conss_read = True
             #self._best_subip()
             if output_scores is not None:
