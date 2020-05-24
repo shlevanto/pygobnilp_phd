@@ -3579,7 +3579,7 @@ class Gobnilp(Model):
               header=True, comments='#', delimiter=None,
               start='no data', end='output written', data_type='discrete',
               score='BDeu', local_score_fun=None,
-              k=1, ls=False, standardise=False,
+              k=1, standardise=False,
               arities = None, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
@@ -3613,7 +3613,6 @@ class Gobnilp(Model):
              and `ub` is either `None` or an upper bound on the local score for `child` with any proper superset of `parents`
          k (float): Penalty multiplier for penalised log-likelihood scores (eg BIC, AIC) or tuning parameter ('lambda^2) for l_0
                     penalised Gaussian scoring (as per van de Geer and Buehlmann)
-         ls (bool): For Gaussian scores, whether the unpenalised score should be -(1/2) * MSE, rather than log-likelihood
          standardise (bool) : Whether to standardise continuous data.
          arities (array_like/None): Arities for the discrete variables. If `data_source` is a filename then 
                                this value is ignored and the arities are those given in the file. 
@@ -3743,7 +3742,7 @@ class Gobnilp(Model):
                 else:
                     klass = globals()[score]
                     if score.startswith('Gaussian'):
-                        local_score_fun = klass(self._data,k=k,ls=ls).score
+                        local_score_fun = klass(self._data,k=k).score
                     else:
                         local_score_fun = klass(self._data).score
 

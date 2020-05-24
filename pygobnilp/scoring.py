@@ -25,7 +25,6 @@ from math import lgamma, log, pi
 from itertools import combinations
 
 from scipy.special import digamma, gammaln
-from sklearn.linear_model import LinearRegression
 from scipy.stats import norm, entropy
 
 import numpy as np
@@ -723,10 +722,15 @@ class _AbsLLPenalised:
         '''
         self.__dict__.update(data.__dict__)
         self._maxllh = {}
-        self._entropy_cache = {}
+        if type(data) == ContinuousData:
+            self._cov = np.cov(self._data,rowvar=False,bias=True)
+            self._gaussianll_cache = {}
+            self._log2pi1 = log(2*pi + 1)
+        if type(data) == DiscreteData:
+            self._entropy_cache = {}
+
         for i, v in enumerate(self._variables):
             self._maxllh[v] = self.ll_score(v,self._variables[:i]+self._variables[i+1:])[0]
-
 
     
 class AbsDiscreteLLScore(DiscreteData):
@@ -817,7 +821,6 @@ class AbsDiscreteLLScore(DiscreteData):
             (1) The fitted log-likelihood local score for the given family and 
             (2) the number of joint instantations of the parents (or None if too big)
         '''
-        self.entropy(list(parents)+[child])
         pah, numinsts = self.entropy(parents)
         return self._data_length * (pah - self.entropy(list(parents)+[child])[0]), numinsts
 
@@ -830,6 +833,7 @@ class DiscreteLL(AbsDiscreteLLScore):
          data (DiscreteData): data
         '''
         _AbsLLPenalised.__init__(self,data)
+
 
 
     def score(self,child,parents):
@@ -878,6 +882,27 @@ class AbsGaussianLLScore(ContinuousData):
     Abstract class for Gaussian log-likelihood scoring
     """
 
+
+    def gaussianll(self,variables):
+        '''
+        Compute the Gaussian log-likelihood of some variables
+
+        Args:
+         variables (iter): Variables
+
+        Returns:
+         The Gaussian log-likelihood of some variables
+        '''
+        vset = frozenset(variables)
+        try:
+            return self._gaussianll_cache[vset]
+        except KeyError:
+            indices = [self._varidx[v] for v in variables]
+            subcov = self._cov[np.ix_(indices,indices)]
+            gll = -0.5 * self._data_length * (np.linalg.slogdet(subcov)[1] + len(indices)*self._log2pi1)
+            self._gaussianll_cache[vset] = gll
+            return gll
+    
     def ll_score(self,child,parents):
         '''The Gaussian log-likelhood score for a given family, plus a dummy upper bound
 
@@ -889,36 +914,17 @@ class AbsGaussianLLScore(ContinuousData):
          tuple: First element of tuple is the Gaussian log-likelihood score for the family for current data
           Second element is number of parameters which is number of parents plus 2 (intercept plus sd of residuals)
         '''
-        response_idx = self._varidx[child]
-        y = self._data[:,response_idx]
-        if len(parents) == 0:
-            resids = np.mean(y) - y
-        else:
-            predictors_idx = np.array([self._varidx[v] for v in parents],dtype=np.uint32)
-            X = self._data[:,predictors_idx]
-            reg = LinearRegression().fit(X,y)
-            #print(parents,reg.coef_)
-            preds = reg.predict(X)
-            resids = y-preds
-        sd = np.std(resids)
-        numparams = len(parents)+2  # include intercept AND sd (even though latter is not a free param)
-        if self._ls:
-            return -0.5 * (sd**2), numparams
-        else:
-            return norm.logpdf(resids,scale=sd).sum(), numparams
+        return (self.gaussianll(list(parents)+[child]) - self.gaussianll(parents)), len(parents)+2
 
 class GaussianLL(AbsGaussianLLScore):
     
-    def __init__(self,data,ls=False):
+    def __init__(self,data):
         '''Initialises an `GaussianLL` object.
 
         Args:
          data (ContinuousData): data
-         ls (bool): Whether the unpenalised score should be -(1/2) * MSE, rather than log-likelihood
         '''
-        self._ls = ls
         _AbsLLPenalised.__init__(self,data)
-
 
     def score(self,child,parents):
         '''
@@ -938,18 +944,16 @@ class GaussianLL(AbsGaussianLLScore):
         
 class GaussianBIC(AbsGaussianLLScore):
 
-    def __init__(self,data,k=1,ls=False):
+    def __init__(self,data,k=1):
         '''Initialises an `GaussianBIC` object.
 
         Args:
          data (ContinuousData): data
          k (float): Multiply standard BIC penalty by this amount, so increase for sparser networks
-         ls (bool): Whether the unpenalised score should be -(1/2) * MSE, rather than log-likelihood
         '''
-        self._ls = ls
         _AbsLLPenalised.__init__(self,data)
+        # compute and store the sample covariance matrix (the version that gives the MLE)
         self._fn = k * 0.5 * log(self._data_length)  # Carvalho notation
-
         
     def score(self,child,parents):
         '''
@@ -969,15 +973,13 @@ class GaussianBIC(AbsGaussianLLScore):
 
 class GaussianAIC(AbsGaussianLLScore):
 
-    def __init__(self,data,k=1,ls=False):
+    def __init__(self,data,k=1):
         '''Initialises an `GaussianAIC` object.
 
         Args:
          data (ContinuousData): data
          k (float): Multiply standard AIC penalty by this amount, so increase for sparser networks
-         ls (bool): Whether the unpenalised score should be -(1/2) * MSE, rather than log-likelihood
         '''
-        self._ls = ls
         _AbsLLPenalised.__init__(self,data)
         self._k = k
 
@@ -1003,15 +1005,13 @@ class GaussianL0(AbsGaussianLLScore):
     Implements score discussed in "l_0-Penalized Maximum Likelihood for Sparse Directed
     Acyclic Graphs" by Sara van de Geer and Peter Buehlmann. Annals of Statistics 41(2):536-567, 2013.
     '''
-    def __init__(self,data,k=1,ls=False):
+    def __init__(self,data,k=1):
         '''Initialises an `GaussianL0` object.
 
         Args:
          data (ContinuousData): data
          k (float): Tuning parameter for L0 penalty. Called "lambda^2" in van de Geer and Buehlmann
-         ls (bool): Whether the unpenalised score should be -(1/2) * MSE, rather than log-likelihood
         '''
-        self._ls = ls
         _AbsLLPenalised.__init__(self,data)
         self._k = k
 
