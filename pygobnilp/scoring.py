@@ -725,7 +725,7 @@ class _AbsLLPenalised:
         if type(data) == ContinuousData:
             self._cov = np.cov(self._data,rowvar=False,bias=True)
             self._gaussianll_cache = {}
-            self._log2pi1 = log(2*pi + 1)
+            self._log2pi1 = log(2*pi) + 1
         if type(data) == DiscreteData:
             self._entropy_cache = {}
 
