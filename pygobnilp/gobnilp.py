@@ -3741,7 +3741,7 @@ class Gobnilp(Model):
                     local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
                 else:
                     klass = globals()[score]
-                    if score.startswith('Gaussian'):
+                    if score.startswith('Gaussian') and score != "GaussianLL":
                         local_score_fun = klass(self._data,k=k).score
                     else:
                         local_score_fun = klass(self._data).score
