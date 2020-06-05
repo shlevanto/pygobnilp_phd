@@ -723,6 +723,7 @@ class _AbsLLPenalised:
         self.__dict__.update(data.__dict__)
         self._maxllh = {}
         if type(data) == ContinuousData:
+            # compute and store the sample covariance matrix (the version that gives the MLE)
             self._cov = np.cov(self._data,rowvar=False,bias=True)
             self._gaussianll_cache = {}
             self._log2pi1 = log(2*pi) + 1
@@ -912,9 +913,9 @@ class AbsGaussianLLScore(ContinuousData):
        
         Returns:
          tuple: First element of tuple is the Gaussian log-likelihood score for the family for current data
-          Second element is number of parameters which is number of parents plus 2 (intercept plus sd of residuals)
+          Second element is number of free parameters which is number of parents plus 1 (for intercept)
         '''
-        return (self.gaussianll(list(parents)+[child]) - self.gaussianll(parents)), len(parents)+2
+        return (self.gaussianll(list(parents)+[child]) - self.gaussianll(parents)), len(parents)+1
 
 class GaussianLL(AbsGaussianLLScore):
     
@@ -952,7 +953,6 @@ class GaussianBIC(AbsGaussianLLScore):
          k (float): Multiply standard BIC penalty by this amount, so increase for sparser networks
         '''
         _AbsLLPenalised.__init__(self,data)
-        # compute and store the sample covariance matrix (the version that gives the MLE)
         self._fn = k * 0.5 * log(self._data_length)  # Carvalho notation
         
     def score(self,child,parents):
