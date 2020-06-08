@@ -905,7 +905,7 @@ class AbsGaussianLLScore(ContinuousData):
             return gll
     
     def ll_score(self,child,parents):
-        '''The Gaussian log-likelhood score for a given family, plus a dummy upper bound
+        '''The Gaussian log-likelhood score for a given family, plus the number of free parameters
 
         Args:
          child (str): The child variable
@@ -945,15 +945,18 @@ class GaussianLL(AbsGaussianLLScore):
         
 class GaussianBIC(AbsGaussianLLScore):
 
-    def __init__(self,data,k=1):
+    def __init__(self,data,k=1,sdresidparam=True):
         '''Initialises an `GaussianBIC` object.
 
         Args:
          data (ContinuousData): data
          k (float): Multiply standard BIC penalty by this amount, so increase for sparser networks
+         sdresidparam (bool): Whether to count the standard deviation of the residuals as a parameter
+          when computing the penalty
         '''
         _AbsLLPenalised.__init__(self,data)
         self._fn = k * 0.5 * log(self._data_length)  # Carvalho notation
+        self._sdresidparam = sdresidparam
         
     def score(self,child,parents):
         '''
@@ -969,20 +972,25 @@ class GaussianBIC(AbsGaussianLLScore):
          for proper supersets of `parents`
         '''
         this_ll_score, numparams = self.ll_score(child,parents)
+        if self._sdresidparam:
+            numparams += 1
         return this_ll_score - self._fn * numparams, self._maxllh[child] - self._fn * (numparams+1)
 
 class GaussianAIC(AbsGaussianLLScore):
 
-    def __init__(self,data,k=1):
+    def __init__(self,data,k=1,sdresidparam=True):
         '''Initialises an `GaussianAIC` object.
 
         Args:
          data (ContinuousData): data
          k (float): Multiply standard AIC penalty by this amount, so increase for sparser networks
+         sdresidparam (bool): Whether to count the standard deviation of the residuals as a parameter
+          when computing the penalty
+
         '''
         _AbsLLPenalised.__init__(self,data)
         self._k = k
-
+        self._sdresidparam = sdresidparam
 
     def score(self,child,parents):
         '''
@@ -998,6 +1006,8 @@ class GaussianAIC(AbsGaussianLLScore):
          for proper supersets of `parents`
         '''
         this_ll_score, numparams = self.ll_score(child,parents)
+        if self._sdresidparam:
+            numparams += 1
         return this_ll_score - self._k * numparams, self._maxllh[child] - self._k * (numparams+1)
 
 class GaussianL0(AbsGaussianLLScore):
@@ -1029,7 +1039,7 @@ class GaussianL0(AbsGaussianLLScore):
          for proper supersets of `parents`
         '''
         this_ll_score, numparams = self.ll_score(child,parents)
-        sb = numparams-2 # just count edges
+        sb = numparams-1 # just count edges, so remove count for intercept
         return this_ll_score - self._k * sb, self._maxllh[child] - self._k * (sb+1)
 
 

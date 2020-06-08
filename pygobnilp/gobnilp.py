@@ -642,6 +642,16 @@ class Gobnilp(Model):
             return self._nxs
         except AttributeError:
             raise Gobnilp.StageError(self.stage,"No BNs learned yet.")            
+
+    @property
+    def learned_scores(self):
+        '''tuple: Learned BNs
+        '''
+        try:
+            return self._learnedscores
+        except AttributeError:
+            raise Gobnilp.StageError(self.stage,"No BNs learned yet.")            
+
         
     @property
     def learned_bn(self):
@@ -1785,15 +1795,18 @@ class Gobnilp(Model):
     def _all_to_nx(self):
         '''
         Constructs a list of ``BN`` objects corresponding to each solution
-        in order
+        in order and also records each score (and stores both internally).
         '''
         nxs = []
+        learned_scores = []
         for i in range(self.Solcount):
             self.Params.SolutionNumber = i
             nxs.append(self._to_nx())
-        nxs = tuple(nxs)
-        self._nxs = nxs
+            learned_scores.append(self.PoolObjVal)
+        self._nxs = tuple(nxs)
+        self._learnedscores = tuple(learned_scores)
 
+        
     def _to_nx(self):
         '''
         Returns a ``BN`` object corresponding to a solution
@@ -3579,7 +3592,7 @@ class Gobnilp(Model):
               header=True, comments='#', delimiter=None,
               start='no data', end='output written', data_type='discrete',
               score='BDeu', local_score_fun=None,
-              k=1, standardise=False,
+              k=1, sdresidparam=True,standardise=False,
               arities = None, palim=3,
               alpha=1.0, nu=None, alpha_mu=1.0, alpha_omega=None,
               starts=(),local_scores_source=None,
@@ -3613,6 +3626,8 @@ class Gobnilp(Model):
              and `ub` is either `None` or an upper bound on the local score for `child` with any proper superset of `parents`
          k (float): Penalty multiplier for penalised log-likelihood scores (eg BIC, AIC) or tuning parameter ('lambda^2) for l_0
                     penalised Gaussian scoring (as per van de Geer and Buehlmann)
+        sdresidparam (bool): For Gaussian BIC and AIC, whether (like bnlearn) to count the standard deviation of the residuals as a parameter
+          when computing the penalty
          standardise (bool) : Whether to standardise continuous data.
          arities (array_like/None): Arities for the discrete variables. If `data_source` is a filename then 
                                this value is ignored and the arities are those given in the file. 
@@ -3706,8 +3721,8 @@ class Gobnilp(Model):
 
         self.Params.OutputFlag = gurobi_output
 
-        for k,v in params.items():
-            self.setParam(k,v)
+        for param,paramval in params.items():
+            self.setParam(param,paramval)
         
         user_conss_read = False
 
@@ -3742,7 +3757,10 @@ class Gobnilp(Model):
                 else:
                     klass = globals()[score]
                     if score.startswith('Gaussian') and score != "GaussianLL":
-                        local_score_fun = klass(self._data,k=k).score
+                        if score == "GaussianL0":
+                            local_score_fun = klass(self._data,k=k).score
+                        else:
+                            local_score_fun = klass(self._data,k=k,sdresidparam=sdresidparam).score
                     else:
                         local_score_fun = klass(self._data).score
 
