@@ -44,8 +44,6 @@ parser.add_argument("--score", default="BDeu",
 parser.add_argument("--k", default=1,
                     help="""Penalty multiplier for penalised log-likelihood scores (eg BIC, AIC) or tuning parameter ('lambda^2) for l_0
                     penalised Gaussian scoring (as per van de Geer and Buehlmann)""")
-parser.add_argument("--ls", action="store_true",
-                    help="For Gaussian scores, make unpenalised score -(1/2) * MSE, rather than log-likelihood")
 parser.add_argument("--standardise", action="store_true",
                     help="Standardise continuous data.")
 parser.add_argument("--palim", "-p", type=int, default=3,
