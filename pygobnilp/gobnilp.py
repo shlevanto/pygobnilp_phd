@@ -2524,7 +2524,7 @@ class Gobnilp(Model):
         n = 0
         generation = self.generation
         for (pa,ch), arrow_var in list(self.arrow.items()):
-            self.addConstr((arrow_var == 1) >> (generation[ch] <= generation[pa] - 1))
+            self.addConstr((arrow_var == 1) >> (generation[ch] >= generation[pa] + 1))
             n += 1
         if self._verbose:
             print('%d indicator constraints linking arrows to gen numbers  declared' % n, file=sys.stderr)
