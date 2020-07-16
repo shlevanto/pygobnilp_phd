@@ -628,7 +628,7 @@ class Gobnilp(Model):
         (and thus one colun for each variable).
 
         If the data is discrete the array entries are of dtype
-        uint32 and if the data is discrete the entries are of dtype
+        uint32 and if the data is continuous the entries are of dtype
         float64
 
         '''
@@ -3751,28 +3751,31 @@ class Gobnilp(Model):
             # no local scores yet, so compute them ...
             if local_scores_source is None:
                 if score == 'BDeu':
-                    local_score_fun = BDeu(self._data,alpha=alpha).bdeu_score
+                    local_score_fun_temp = BDeu(self._data,alpha=alpha).bdeu_score
                 elif score == 'BGe':
-                    local_score_fun = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
+                    local_score_fun_temp = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
                 else:
                     klass = globals()[score]
                     if score.startswith('Gaussian') and score != "GaussianLL":
                         if score == "GaussianL0":
-                            local_score_fun = klass(self._data,k=k).score
+                            local_score_fun_temp = klass(self._data,k=k).score
                         else:
-                            local_score_fun = klass(self._data,k=k,sdresidparam=sdresidparam).score
+                            local_score_fun_temp = klass(self._data,k=k,sdresidparam=sdresidparam).score
                     else:
-                        local_score_fun = klass(self._data).score
+                        local_score_fun_temp = klass(self._data).score
 
                 # take any non-zero edge penalty into account
+                # avoid infinite recursion by using fix supplied by Molly Acheson
                 if edge_penalty != 0.0:
                     def local_score_edge(child,parents):
-                        score, ub = local_score_fun(child,parents)
+                        score, ub = local_score_fun_temp(child,parents)
                         pasize = len(parents)
                         if ub is not None:
                             ub -= edge_penalty * (pasize+1)
                         return score - edge_penalty * pasize, ub
                     local_score_fun = local_score_edge
+                else:
+                    local_score_fun = local_score_fun_temp
 
                 self.set_starts(starts) #store any initial feasible solutions now so that relevant scores are computed
                 local_scores = self.return_local_scores(local_score_fun,palim=palim,pruning=pruning)
