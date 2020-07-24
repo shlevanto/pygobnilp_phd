@@ -32,7 +32,7 @@ parser.add_argument("--noheader", action="store_true",
                     help="For continuous data only: The first non-comment line in the input file does not list the variables.")
 parser.add_argument("--comments", default='#',
                     help="For continuous data only: Lines starting with this string are treated as comments.")
-parser.add_argument("--delimiter", action="store_true",default=None,
+parser.add_argument("--delimiter", default=None,
                     help="For continuous data only: String used to separate values. If not set then whitespace is used.")
 parser.add_argument("--end", default="output written",
                     help="End stage for learning. If set to 'local scores' execution stops once local scores are computed")
