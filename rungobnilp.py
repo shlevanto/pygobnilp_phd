@@ -41,7 +41,7 @@ parser.add_argument("--score", default="BDeu",
                     of the following: BDeu, BGe, DiscreteLL,
                     DiscreteBIC, DiscreteAIC, GaussianLL, GaussianBIC,
                     GaussianAIC, GaussianL0.""")
-parser.add_argument("--k", default=1,
+parser.add_argument("--k", default=1,type=float,
                     help="""Penalty multiplier for penalised log-likelihood scores (eg BIC, AIC) or tuning parameter ('lambda^2) for l_0
                     penalised Gaussian scoring (as per van de Geer and Buehlmann)""")
 parser.add_argument("--standardise", action="store_true",

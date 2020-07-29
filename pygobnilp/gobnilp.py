@@ -3756,11 +3756,10 @@ class Gobnilp(Model):
                     local_score_fun_temp = BGe(self._data, nu=nu, alpha_mu=alpha_mu, alpha_omega=alpha_omega).bge_score
                 else:
                     klass = globals()[score]
-                    if score.startswith('Gaussian') and score != "GaussianLL":
-                        if score == "GaussianL0":
-                            local_score_fun_temp = klass(self._data,k=k).score
-                        else:
-                            local_score_fun_temp = klass(self._data,k=k,sdresidparam=sdresidparam).score
+                    if score in frozenset(["DiscreteBIC", "DiscreteAIC","GaussianL0"]):
+                        local_score_fun_temp = klass(self._data,k=k).score
+                    elif score in frozenset(["GaussianBIC", "GaussianAIC"]):
+                        local_score_fun_temp = klass(self._data,k=k,sdresidparam=sdresidparam).score
                     else:
                         local_score_fun_temp = klass(self._data).score
 
