@@ -34,7 +34,13 @@ from scipy.sparse.csgraph import floyd_warshall
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph._shortest_path import NegativeCycleError
 
-import pygraphviz as pvg
+try:
+    import pygraphviz as pvg
+    pvg_present = True
+except ImportError as e:
+    print("Running without graphics since pygraphviz is not available!")
+    print(e)
+    pvg_present = False
 
 try:
     from gurobipy import Model, LinExpr, GRB
@@ -343,7 +349,10 @@ class BN(nx.DiGraph):
 
 
     def draw(self,output_stem,i=None,dag=True,cpdag=True,exts=('pdf',)):
-        g = pvg.AGraph(strict=True,directed=True)
+        if pvg_present:
+            g = pvg.AGraph(strict=True,directed=True)
+        else:
+            return
         g.add_nodes_from(self.nodes)
         g.add_edges_from(self.edges)
         if i is None:
@@ -3847,7 +3856,7 @@ class Gobnilp(Model):
                 for i, dag in enumerate(self.learned_bns):
                     print(dag)
                     print(dag.cpdag_str())
-                    if plot:
+                    if pvg_present and plot:
                         dag.plot(abbrev=abbrev)
             self._stage = 'output shown'
 

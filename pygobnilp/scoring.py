@@ -450,6 +450,7 @@ class DiscreteData(Data):
         If  `data_source` is a filename then it is assumed that:
 
             #. All values are separated by whitespace
+            #. Empty lines are ignored
             #. Comment lines start with a '#'
             #. The first line is a header line stating the names of the 
                variables
@@ -478,11 +479,11 @@ class DiscreteData(Data):
         if type(data_source) == str:
             with open(data_source, "r") as file:
                 line = file.readline().rstrip()
-                while line[0] == '#':
+                while len(line) == 0 or line[0] == '#':
                     line = file.readline().rstrip()
                 varnames = line.split()
                 line = file.readline().rstrip()
-                while line[0] == '#':
+                while len(line) == 0 or line[0] == '#':
                     line = file.readline().rstrip()
                 arities = np.array([int(x) for x in line.split()],dtype=self._arity_type)
 
