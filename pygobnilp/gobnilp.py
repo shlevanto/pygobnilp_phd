@@ -3635,7 +3635,7 @@ class Gobnilp(Model):
              and `ub` is either `None` or an upper bound on the local score for `child` with any proper superset of `parents`
          k (float): Penalty multiplier for penalised log-likelihood scores (eg BIC, AIC) or tuning parameter ('lambda^2) for l_0
                     penalised Gaussian scoring (as per van de Geer and Buehlmann)
-        sdresidparam (bool): For Gaussian BIC and AIC, whether (like bnlearn) to count the standard deviation of the residuals as a parameter
+         sdresidparam (bool): For Gaussian BIC and AIC, whether (like bnlearn) to count the standard deviation of the residuals as a parameter
           when computing the penalty
          standardise (bool) : Whether to standardise continuous data.
          arities (array_like/None): Arities for the discrete variables. If `data_source` is a filename then 
