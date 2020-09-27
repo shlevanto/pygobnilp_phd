@@ -9,10 +9,19 @@ computing BDeu local scores from discrete data and from work done by
 Matt Horder on BGe scoring. In both cases this work was done as a
 final-year BEng project at the University of York.
 
-For full details on GOBNILP (including the C version), please consult
-the GOBNILP page:
+For the C version of GOBNILP please go to:
 
-https://www.cs.york.ac.uk/aig/sw/gobnilp/
+https://bitbucket.org/jamescussens/gobnilp
+
+# Documentation
+
+API documentation for the Python version of GOBNILP can be found at:
+
+https://pygobnilp.readthedocs.io/
+
+A manual for the Python version of GOBNILP is included in this git
+repo as the two files manual.tex and manual.bib. You will need to use
+LaTeX (and BiBTeX) to create e.g. a PDF version of the manual.
 
 # Running GOBNILP
 
@@ -62,7 +71,6 @@ the size of the problem and speeds up learning.  However, when we seek
 not just an optimal BN but also sub-optimal ones then pruning must be
 turned off to ensure correct results.
 
-
 The limit on parent set size is an important parameter. Note that its
 default value is 3. Raising this value will slow down learning but may
 lead to a higher scoring BN. For example, doing `python
@@ -72,7 +80,7 @@ long.  Raising to '--palim 5' finds a better (well, higher scoring)
 network, but takes just under 100 seconds on my desktop.
 
 The Python implementation of GOBNILP also learns Gaussian networks
-from continuous data using BGe scoring. To do this use '--score BGe'
+from continuous data using either BGe scoring or penalised Gaussian MLE scores (AIC, BIC or L0). To use, for example BGe scoring do, '--score BGe'
 on the command line. (The format for continuous data is similar to that
 for discrete data except there is no line for arity.) For example
 
