@@ -7,7 +7,7 @@ setuptools.setup(
     name="pygobnilp", 
     version="1.0",
     author="James Cussens",
-    author_email="james.cussens@york.ac.uk",
+    author_email="james.cussens@bristol.ac.uk",
     description="Bayesian network learning with the Gurobi MIP solver",
     long_description=long_description,
     long_description_content_type="text/markdown",

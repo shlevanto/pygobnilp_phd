@@ -19,7 +19,7 @@
 """
 
 __author__ = "Josh Neil, James Cussens"
-__email__ = "james.cussens@york.ac.uk"
+__email__ = "james.cussens@bristol.ac.uk"
 
 from math import lgamma, log, pi
 from itertools import combinations
@@ -32,16 +32,14 @@ import pandas as pd
 
 from numba import jit, njit
 
-# try:
-#     from .adtree import return_adtree, makecontab
-#     adtree_available = True
-# except ImportErorr as e:
-#     adtree_available = False
-#     print("C ADTree implementation unavailable.")
-#     print(e)
+try:
+    import adtree
+    adtree_available = True
+except ImportErorr as e:
+    adtree_available = False
+    print("C ADTree implementation unavailable.")
+    print(e)
 
-adtree_available = False
-    
 # START functions for contabs
 
 @jit(nopython=True)
@@ -544,10 +542,10 @@ class DiscreteData(Data):
 
         # create AD tree, if possible
         if adtree_available:
-            #dd = np.transpose(np.vstack((self._arities,self._data))).astype(np.uint8,casting='safe')
-            #print(dd)
-            self._adtree = return_adtree(2000,1000,1000,np.transpose(np.vstack((self._arities,self._data))).astype(np.uint8,casting='safe'))
-        
+            self._adtree = adtree.adtree(10,1000,1000,
+                                         np.array(self._data.flatten('F'),dtype=np.int32),
+                                         np.array(self._arities,dtype=np.int32),
+                                         self._data_length)
         
     def data(self):
         '''
@@ -612,7 +610,7 @@ class DiscreteData(Data):
           Counts are in lexicographic order of the joint instantiations of the columns (=variables)
           2nd element: the 'strides' for each column (=variable)
         '''
-        cols = np.array([self._varidx[v] for v in variables], dtype=np.uintc)
+        cols = np.array([self._varidx[v] for v in variables], dtype=np.int32)
         cols.sort()
         p = len(cols)
         idx = p-1
@@ -627,8 +625,8 @@ class DiscreteData(Data):
                 return np.empty(0,dtype=np.uint32), strides
             idx -= 1
         #print(variables,cols,int(stride),flush=True)
-        flatcontab = np.empty(stride,dtype=np.uintc)
-        makecontab(self._adtree,cols,flatcontab)
+        flatcontab = np.empty(stride,dtype=np.int32)
+        adtree.contab(self._adtree,cols,flatcontab)
         #print(flatcontab,flush=True)
         return flatcontab, strides
     
