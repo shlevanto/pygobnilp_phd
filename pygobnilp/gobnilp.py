@@ -2734,8 +2734,7 @@ class Gobnilp(Model):
 
             is_a_dag = True
             if self._enforcing_cluster_constraints:
-                #print(self.cbGet(GRB.Callback.MIPSOL_NODCNT))
-                is_a_dag = not self._subip(cutting = False) # no max cluster size when enforcing
+                is_a_dag = self._sol_is_a_dag()
                 self._user_enforcement_rounds_count += 1
             if is_a_dag:
                 self._enforce_lazy_user_constraints()
@@ -3213,6 +3212,69 @@ class Gobnilp(Model):
             self.cbCut(LinExpr([1.0]*len(vs),vs), GRB.LESS_EQUAL, len(cluster)-1)
         return True
 
+
+    def _sol_is_a_dag(self):
+        '''Check whether a proposed solution is a DAG
+        Uses acyclicity check of Hoffmann and van Beek 2013
+        If not a DAG add a lazy cluster constraint ruling this solution out
+        '''
+        child_list = self.child
+        parentset_list = self.parents
+        family = self.family
+        n = self.n
+        
+        # get which parent sets selected in candidate solution
+        fv_vals = self.cbGetSolution(self.family_list)
+        dom = {}
+        found = 0
+        for i, solval in enumerate(fv_vals):
+            if solval > 0:
+                child = child_list[i]
+                parentset = parentset_list[i]
+                dom[child] = parentset
+                found += 1
+                if found == n:
+                    break
+
+        # attempt to find an ordering
+        prefixset = set()
+        prefixlen = 0
+        while prefixlen < n:
+            for child, parentset in dom.items():
+                if parentset <= prefixset:
+                    prefixset.add(child)
+                    prefixlen += 1
+                    del dom[child]
+                    break
+            else:
+                # 
+                # this code copied from _subip
+                # should be separate function
+                cluster = frozenset(dom)
+                rhs = len(cluster)-1
+                lexpr = LinExpr()
+                for child in cluster:
+                    intersecting_fvs = []
+                    non_intersecting_fvs = []
+                    for parent_set, fv in list(family[child].items()):
+                        if cluster.isdisjoint(parent_set):
+                            non_intersecting_fvs.append(fv)
+                        else:
+                            intersecting_fvs.append(fv)
+                    len_i = len(intersecting_fvs)
+                    len_ni = len(non_intersecting_fvs)
+                    # there is exactly one parent set per child
+                    # use this to minimise number of variables in constraint
+                    if len_i > len_ni:
+                        lexpr.addTerms([-1]*len_ni,non_intersecting_fvs)
+                        rhs -= 1
+                    else:
+                        lexpr.addTerms([1]*len_i,intersecting_fvs)
+                self.cbLazy(lexpr, GRB.LESS_EQUAL, rhs)
+                return False
+        return True
+                
+        
                     
     def _subip(self,cutting,max_cluster_size=None):
         '''Sub-IP for finding cluster cuts which separate the solution
