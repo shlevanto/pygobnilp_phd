@@ -534,6 +534,7 @@ class DiscreteData(Data):
         self._unique_data_counts = np.array(counts,self._count_type)
             
         self._maxflatcontabsize = 1000000
+        self._contab = np.empty(self._maxflatcontabsize,dtype=np.int32)
 
         self._varidx = {}
         for i, v in enumerate(self._variables):
@@ -601,34 +602,15 @@ class DiscreteData(Data):
         Args:
          variables (iter): The variables in the marginal contingency table.
 
-
         Returns:
-         tuple: 1st element is of type ndarray: 
-          If the contingency table would have too many then the array is empty
-          (and the 2nd element of the tuple should be ignored)
-          else an array of counts of length equal to the product of the `arities`.
-          Counts are in lexicographic order of the joint instantiations of the columns (=variables)
-          2nd element: the 'strides' for each column (=variable)
+         tuple: 1st element is of type ndarray the first SIZE elements of which contain the required contingency table 
+          2nd element: the value SIZE (product of arities of the variables), or -1 iff table too big
         '''
         cols = np.array([self._varidx[v] for v in variables], dtype=np.int32)
         cols.sort()
-        p = len(cols)
-        idx = p-1
-        stride = 1
-        arities = self._arities[cols]
-        maxsize = self._maxflatcontabsize
-        strides = np.empty(p,dtype=np.uint32)
-        while idx > -1:
-            strides[idx] = stride
-            stride *= arities[idx]
-            if stride > maxsize:
-                return np.empty(0,dtype=np.uint32), strides
-            idx -= 1
-        #print(variables,cols,int(stride),flush=True)
-        flatcontab = np.empty(stride,dtype=np.int32)
-        adtree.contab(self._adtree,cols,flatcontab)
+        size = adtree.contab(self._adtree,cols,self._contab)
         #print(flatcontab,flush=True)
-        return flatcontab, strides
+        return self._contab, size
     
 class ContinuousData(Data):
     """
@@ -779,10 +761,18 @@ class AbsDiscreteLLScore(DiscreteData):
         try:
             return self._entropy_cache[vset]
         except KeyError:
-            cols = np.array(sorted([self._varidx[x] for x in variables]), dtype=np.uint32)
             if adtree_available: # using global variable makes testing easier
-                contab, strides = self.make_contab_adtree(variables)
+                contab, size = self.make_contab_adtree(variables)
+                if size > 0:
+                    h = entropy(contab[:size])
+                    self._entropy_cache[vset] = h, size
+                    return h, size
+                else:
+                    # indicate too big
+                    cols = np.array(sorted([self._varidx[x] for x in variables]), dtype=np.uint32)
+                    contab = ()
             else:
+                cols = np.array(sorted([self._varidx[x] for x in variables]), dtype=np.uint32)
                 contab, strides = make_contab(self._unique_data, self._unique_data_counts, cols,
                                           self._arities[cols], self._maxflatcontabsize)
             # do it anyway!
