@@ -133,8 +133,8 @@ def mhs(subsets,ground_set = None):
     
 
 def _enforce_palim(dkt,palim):
-    for scored_parentsets in dkt.values():
-        for parentset in scored_parentsets.keys():
+    for scored_parentsets in dkt.copy().values():
+        for parentset in tuple(scored_parentsets.keys()):
             if len(parentset) > palim:
                 del scored_parentsets[parentset]
 
