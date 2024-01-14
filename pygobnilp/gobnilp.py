@@ -43,7 +43,7 @@ except ImportError as e:
     pvg_present = False
 
 try:
-    from gurobipy import Model, LinExpr, GRB
+    from gurobipy import Model, LinExpr, GRB, GurobiError
 except ImportError as e:
     print("Gurobi not available!")
     print(e)
@@ -991,22 +991,30 @@ class Gobnilp(Model):
     def __init__(self):
         '''Initialise a Gobnilp object
         '''
-        super(Gobnilp,self).__init__("gobnilp")
-        
-        # Setting Gurobi model parameters 
-        self.ModelSense = -1      # maximise objective
-        self.Params.PreCrush = 1  # since (always) adding cuts
-        self.Params.CutPasses = 100000    # want to allow many cuts
-        self.Params.GomoryPasses = 100000 # want to allow many cuts
-        self.Params.MIPFocus = 2          # focus on proving optimality
-        #self.Params.Presolve = 2
-        #self.Params.PreDual = 2
-        self.Params.ZeroHalfCuts = 2
 
+        try:
+            super(Gobnilp,self).__init__("gobnilp")
         
-        self.Params.MIPGap = 0
-        self.Params.MIPGapAbs = 0
+            # Setting Gurobi model parameters 
+            self.ModelSense = -1      # maximise objective
+            self.Params.PreCrush = 1  # since (always) adding cuts
+            self.Params.CutPasses = 100000    # want to allow many cuts
+            self.Params.GomoryPasses = 100000 # want to allow many cuts
+            self.Params.MIPFocus = 2          # focus on proving optimality
+            #self.Params.Presolve = 2
+            #self.Params.PreDual = 2
+            self.Params.ZeroHalfCuts = 2
 
+            
+            self.Params.MIPGap = 0
+            self.Params.MIPGapAbs = 0
+
+            self._using_gurobi = True
+            
+        except GurobiError:
+            self._using_gurobi = False
+
+            
         # gobnilp parameters
         self._subip_cutoff = -0.999
         self._subip_cutting_timelimit = 5
@@ -3790,7 +3798,8 @@ class Gobnilp(Model):
 
         self._verbose = verbose
 
-        self.Params.OutputFlag = gurobi_output
+        if self._using_gurobi:
+            self.Params.OutputFlag = gurobi_output
 
         for param,paramval in params.items():
             self.setParam(param,paramval)
