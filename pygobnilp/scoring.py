@@ -35,7 +35,7 @@ from numba import jit, njit
 try:
     import adtree
     adtree_available = True
-except ImportErorr as e:
+except ImportError as e:
     adtree_available = False
     print("C ADTree implementation unavailable.")
     print(e)
