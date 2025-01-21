@@ -1610,7 +1610,7 @@ class Gobnilp(Model):
             for child in dag.nodes:
                 parents = frozenset(dag.predecessors(child))
                 if parents not in skores[child]:
-                    skores[child][parents] = local_score_fun(child,parents)[0]
+                    skores[child][parents] = local_score_fun(child,tuple(sorted(parents)))[0]
                     
         return skores
     
