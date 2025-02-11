@@ -1,0 +1,7 @@
+Install graphviz on system: https://graphviz.org/download/
+Create python venv in pygobnilp folder: python -m venv venv
+Activate venv with source venv/bin/activate (Linux) or venv\Scripts\activate (Windows)
+Clone pygobnilp repository: git clone https://bitbucket.org/jamescussens/pygobnilp.git
+Install requirements: pip install -r requirements.txt
+Copy license file gurobi.lic to home folder
+Run python rungobnilp.py data/asia_10000.dat in the pygobnilp folder to test that it works
