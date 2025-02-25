@@ -1,3 +1,6 @@
+This is a fork of the GOBNILP project by James Cussens. For the original, see 
+https://bitbucket.org/jamescussens/pygobnilp/src/master/
+
 # Python implementation of GOBNILP
 
 The Python implementation of GOBNILP is a program that uses Gurobi to
