@@ -121,7 +121,7 @@ def mhs(subsets,ground_set = None):
     for v in ground_set:
         vs[v] = m.addVar(obj=1,vtype=GRB.BINARY)
     for s in subsets:
-        m.addConstr(LinExpr([1]*len(s),[vs[v] for v in s]), GRB.GREATER_EQUAL, 1)
+        m.addConstr(LinExpr([1]*len(s),[vs[v] for v in s]) >= 1)
     m.optimize()
     if m.Status == GRB.INFEASIBLE:
         return None
@@ -1610,7 +1610,7 @@ class Gobnilp(Model):
             for child in dag.nodes:
                 parents = frozenset(dag.predecessors(child))
                 if parents not in skores[child]:
-                    skores[child][parents] = local_score_fun(child,parents)[0]
+                    skores[child][parents] = local_score_fun(child,tuple(sorted(parents)))[0]
                     
         return skores
     
@@ -1661,7 +1661,7 @@ class Gobnilp(Model):
                 self.addGenConstrIndicator(r,True,self._local_score[child], GRB.LESS_EQUAL, this_ub)
                 #print(child,pas,minhs)
                 #n = len(minhs)
-                #self.addConstr(LinExpr([1.0]+[diff]*n,[self._local_score[child]]+mipvars), GRB.LESS_EQUAL, n*global_ub - (n-1)*this_ub)
+                #self.addConstr(LinExpr([1.0]+[diff]*n,[self._local_score[child]]+mipvars) <= n*global_ub - (n-1)*this_ub)
                 better_pas.append(pas)
             
     def add_constraints_one_dag_per_MEC(self,dynamic=True,careful=False):
@@ -2228,7 +2228,7 @@ class Gobnilp(Model):
                 elif d > 0:
                    coeffs.append(d)
                    vs.append(fv)
-        self.addConstr(LinExpr(coeffs,vs), GRB.LESS_EQUAL, k)
+        self.addConstr(LinExpr(coeffs,vs) <= k)
         if self._verbose:
             print('k-branching constraint declared', file=sys.stderr)
 
@@ -2278,9 +2278,7 @@ class Gobnilp(Model):
         genindex = self.generation_index
         generation = self.generation
         for bn_variable in self.bn_variables:
-            self.addConstr(LinExpr(range(self.n),[genindex[bn_variable,pos] for pos in range(self.n)]),
-                           GRB.EQUAL,
-                           generation[bn_variable])
+            self.addConstr(LinExpr(range(self.n),[genindex[bn_variable,pos] for pos in range(self.n)]) == generation[bn_variable])
             n += 1
         if self._verbose:
             print('%d constraints linking generation to generation index variables posted' % n, file=sys.stderr)
@@ -2332,14 +2330,10 @@ class Gobnilp(Model):
         n = 0
         genindex = self.generation_index
         for bn_variable in self.bn_variables:
-            self.addConstr(LinExpr([1.0] * self.n,[genindex[bn_variable,pos] for pos in range(self.n)]),
-                           GRB.EQUAL,
-                           1)
+            self.addConstr(LinExpr([1.0] * self.n,[genindex[bn_variable,pos] for pos in range(self.n)]) == 1)
             n += 1
         for pos in range(self.n):
-            self.addConstr(LinExpr([1.0] * self.n,[genindex[bn_variable,pos] for bn_variable in self.bn_variables]),
-                           GRB.EQUAL,
-                           1)
+            self.addConstr(LinExpr([1.0] * self.n,[genindex[bn_variable,pos] for bn_variable in self.bn_variables]) == 1)
             n += 1
         if self._verbose:
             print('%d gen index constraints posted' % n, file=sys.stderr)
@@ -2350,9 +2344,7 @@ class Gobnilp(Model):
         '''
         n = 0
         for parentset_dict in list(self.family.values()):
-            self.addConstr(LinExpr([1.0] * len(parentset_dict),list(parentset_dict.values())),
-                           GRB.EQUAL,
-                           1)
+            self.addConstr(LinExpr([1.0] * len(parentset_dict),list(parentset_dict.values())) == 1)
             n += 1
         if self._verbose:
             print('%d constraints insisting on exactly one parent set for each variable' % n, file=sys.stderr)
@@ -2401,9 +2393,9 @@ class Gobnilp(Model):
             #    v.BranchPriority = 10
             #if len(s) == 4:
             #    v.BranchPriority = 10
-            #self.addConstr(LinExpr([1]*len(fvs),fvs),GRB.EQUAL,v)
-            self.addConstr(LinExpr([1]*len(fvs),fvs),GRB.LESS_EQUAL,1)
-            #self.addConstr(LinExpr([1]*len(nonfvs),nonfvs),GRB.GREATER_EQUAL,len(s)-1)
+            #self.addConstr(LinExpr([1]*len(fvs),fvs) == v)
+            self.addConstr(LinExpr([1]*len(fvs),fvs) <= 1)
+            #self.addConstr(LinExpr([1]*len(nonfvs),nonfvs) >= len(s)-1)
         
     
     def add_constraints_setpacking(self):
@@ -2449,8 +2441,8 @@ class Gobnilp(Model):
                 del arrow[pa,ch]
                 m += 1
             else:
-                self.addConstr(LinExpr(vals,vs),GRB.EQUAL,0)
-                self.addConstr(LinExpr(non_vals,non_vs),GRB.EQUAL,1)
+                self.addConstr(LinExpr(vals,vs) == 0)
+                self.addConstr(LinExpr(non_vals,non_vs) == 1)
                 n += 2
         if self._verbose:
             print('%d constraints linking arrows to family variables declared' % n, file=sys.stderr)
@@ -2512,7 +2504,7 @@ class Gobnilp(Model):
                     vs.append(arrow[e])
             if len(vs) > 1:
                 self.addConstr(
-                    LinExpr(coeffs,vs),GRB.EQUAL,0)
+                    LinExpr(coeffs,vs) == 0)
                 n += 1
             else:
                 self.remove(adj_var)
@@ -2527,9 +2519,7 @@ class Gobnilp(Model):
         '''
         n = self.n
         self.addConstr(
-            LinExpr([1.0]*n,list(self.generation.values())),
-            GRB.EQUAL,
-            n*(n-1)/2
+            LinExpr([1.0]*n,list(self.generation.values())) == n*(n-1)/2
         )
         if self._verbose:
             print('1 constraint that the sum of gen numbers is',  n*(n-1)/2, file=sys.stderr)
@@ -2552,10 +2542,7 @@ class Gobnilp(Model):
         n = 0
         generation = self.generation
         for (v1,v2), gendiffvar in list(self.generation_difference.items()):
-            self.addConstr(
-                LinExpr([1,-1,-1],[generation[v1],generation[v2],gendiffvar]),
-                GRB.EQUAL,
-                0)
+            self.addConstr(LinExpr([1,-1,-1],[generation[v1],generation[v2],gendiffvar]) == 0)
             n += 1
         if self._verbose:
             print('%d constraints linking gen diff to gen declared' % n, file=sys.stderr)
@@ -2597,7 +2584,7 @@ class Gobnilp(Model):
                     rhs = adjacency[frozenset(pair)]
                 except KeyError:
                     rhs = 0
-                self.addConstr(LinExpr([1]*len(fvlist),fvlist), GRB.LESS_EQUAL, rhs)
+                self.addConstr(LinExpr([1]*len(fvlist),fvlist) <= rhs)
                 n += 1
         if self._verbose:
             print('%d constraints ruling out immoralities declared' % n, file=sys.stderr)
@@ -2907,8 +2894,8 @@ class Gobnilp(Model):
 
         matroid_subip.update()
 
-        matroid_subip.addConstr(LinExpr([1]*len(y),list(y.values())), GRB.GREATER_EQUAL, 4)
-        #matroid_subip.addConstr(LinExpr([1]*len(y),y.values()), GRB.LESS_EQUAL, 6)
+        matroid_subip.addConstr(LinExpr([1]*len(y),list(y.values())) >= 4)
+        #matroid_subip.addConstr(LinExpr([1]*len(y),y.values()) <= 6)
         
         for i, (v1,v2) in enumerate(self._bn_variables_pairs):
             pairset = self._bn_variables_pairs_set[i]
@@ -2923,15 +2910,14 @@ class Gobnilp(Model):
 
         # want at least one circuit, call it {a,b,c} of size 3, so none of {a,b}, {a,c} and {b,c} can be circuits
         # the following constraint is not sufficient to ensure the existence of a circuit of size 3
-        matroid_subip.addConstr(3, GRB.LESS_EQUAL, LinExpr([1]*len(not_circuits2),list(not_circuits2.values())))
+        matroid_subip.addConstr(3 <= LinExpr([1]*len(not_circuits2),list(not_circuits2.values())))
 
         for child, parent_dict in list(sub_fvs.items()):
             for parent_set, fv in list(parent_dict.items()):
-                matroid_subip.addConstr(fv, GRB.LESS_EQUAL, y[child])
+                matroid_subip.addConstr(fv <= y[child])
                 n = len(parent_set)
                 matroid_subip.addConstr(
-                    fv, GRB.LESS_EQUAL, 
-                    LinExpr([1]*(n + n*(n-1)//2),
+                    fv <= LinExpr([1]*(n + n*(n-1)//2),
                             [circuits2[frozenset([child,parent])] for parent in parent_set] +
                             [not_circuits2[frozenset([pa1,pa2])] for (pa1,pa2) in combinations(parent_set,2)])
                 )
@@ -3081,8 +3067,8 @@ class Gobnilp(Model):
                 except KeyError:
                     sub_fvs[child] = {parentset:v}
         subip.update()
-        subip.addConstr(LinExpr([1]*len(abcd),list(abcd.values())), GRB.EQUAL, 4) # |{a,b,c,d}| = 4
-        subip.addConstr(LinExpr([1]*len(cd),list(cd.values())), GRB.EQUAL, 2)     # |{c,d}| = w
+        subip.addConstr(LinExpr([1]*len(abcd),list(abcd.values())) == 4) # |{a,b,c,d}| = 4
+        subip.addConstr(LinExpr([1]*len(cd),list(cd.values())) == 2)     # |{c,d}| = w
         for v, cdvar in cd.items():
             subip.addConstr(cdvar <= abcd[v]) # v in {c,d} => v in {a,b,c,d}
         for child, parent_dict in sub_fvs.items():
@@ -3191,9 +3177,9 @@ class Gobnilp(Model):
 
         for pair, v in pairvs:
             for w in pair:
-                subip.addConstr(v, GRB.LESS_EQUAL, y[w])                    
+                subip.addConstr(v <= y[w])                    
 
-        subip.addConstr(LinExpr([1]*len(y),list(y.values())), GRB.GREATER_EQUAL, 2)
+        subip.addConstr(LinExpr([1]*len(y),list(y.values())) >= 2)
         subip.optimize()
 
         # if no constraint found ...
@@ -3323,16 +3309,16 @@ class Gobnilp(Model):
                     sub_fvs[child] = {parentset:v}
         subip.update()
         if max_cluster_size is not None:
-            subip.addConstr(LinExpr([1]*len(y),list(y.values())), GRB.LESS_EQUAL, max_cluster_size)
-        subip.addConstr(LinExpr([1]*len(y),list(y.values())), GRB.GREATER_EQUAL, 2)
+            subip.addConstr(LinExpr([1]*len(y),list(y.values())) <= max_cluster_size)
+        subip.addConstr(LinExpr([1]*len(y),list(y.values())) >= 2)
         for child, parent_dict in list(sub_fvs.items()):
             for parentset, fv in list(parent_dict.items()):
-                subip.addConstr(fv, GRB.LESS_EQUAL, y[child])
-                subip.addConstr(fv, GRB.LESS_EQUAL, LinExpr([(1,y[parent]) for parent in parentset]))
+                subip.addConstr(fv <= y[child])
+                subip.addConstr(fv <= LinExpr([(1,y[parent]) for parent in parentset]))
                 # to rule out duplicate clusters
                 #npa = len(parentset)
-                #subip.addConstr(LinExpr([npa]+[1]*npa,[y[child]]+[y[parent] for parent in parentset]),
-                #                GRB.LESS_EQUAL,
+                #subip.addConstr(LinExpr([npa]+[1]*npa,[y[child]]+[y[parent] for parent in parentset])
+                #                <=
                 #                npa + npa*fv)
         subip.optimize()
 
