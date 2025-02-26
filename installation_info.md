@@ -16,7 +16,7 @@
 - Install pygraphviz with: ```python -m pip install --config-settings="--global-option=build_ext" --config-settings="--global-option=-IC:\Program Files\Graphviz\include" --config-settings="--global-option=-LC:\Program Files\Graphviz\lib" pygraphviz```
 
 ## Activate license (contact simo.levanto@helsinki.fi / 0405191251):
-Run the ```grbprobe.exe``` 
+Inside the conda environment run ```grbprobe``` 
 Input the information into the Gurobi license system
 Download license file
 Copy license file gurobi.lic to user’s home folder
