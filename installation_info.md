@@ -1,6 +1,6 @@
 ## Preparation:
 - Install JupyterLab or Jupyter Notebook: https://jupyter.org/install 
-- Clone Simo's pygobnilp repository: ```git clone git@github.com:shlevanto/pygobnilp_phd.git```
+- Clone this repository: ```git clone git@github.com:shlevanto/pygobnilp_phd.git```
 
 ## Python modules, choose one
 ### A) Conda (recommended):
