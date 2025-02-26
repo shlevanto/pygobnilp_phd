@@ -13,7 +13,7 @@
 - Create virtual environment in pygobnilp folder: python -m venv venv
 - Activate environment: venv\Scripts\activate (Windows)
 - Install requirements: pip install -r requirements.txt
-- Install pygraphviz with: python -m pip install --config-settings="--global-option=build_ext" --config-settings="--global-option=-IC:\Program Files\Graphviz\include" --config-settings="--global-option=-LC:\Program Files\Graphviz\lib" pygraphviz
+- Install pygraphviz with: ```python -m pip install --config-settings="--global-option=build_ext" --config-settings="--global-option=-IC:\Program Files\Graphviz\include" --config-settings="--global-option=-LC:\Program Files\Graphviz\lib" pygraphviz```
 
 ## Activate license (contact simo.levanto@helsinki.fi / 0405191251):
 Run the gurobi_license_tools_windows/grbprobe.exe -file
