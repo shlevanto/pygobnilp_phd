@@ -1,7 +1,6 @@
 ## Preparation:
-Install JupyterLab or Jupyter Notebook: https://jupyter.org/install 
-Clone pygobnilp repository: git clone https://bitbucket.org/jamescussens/pygobnilp.git
-Copy the grbprobe.exe -file into the pygobnilp folder
+- Install JupyterLab or Jupyter Notebook: https://jupyter.org/install 
+- Clone Simo's pygobnilp repository: git@github.com:shlevanto/pygobnilp_phd.git
 
 ## Python modules, choose one
 ### A) Conda (preferred):
