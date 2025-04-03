@@ -1,4 +1,4 @@
-name: pygobnilp_gurobi1201
+name: pygobnilp
 channels:
   - gurobi
   - conda-forge
