@@ -8,10 +8,12 @@
 - Activate environment: ```conda activate pygobnilp```
 
 ## Activate license (contact simo.levanto@helsinki.fi):
-- Inside the conda environment run ```grbprobe``` 
+- Inside the conda environment run ```grbprobe``` from the gurobi_license_tools -folder for the OS in use
 - Input the information into the Gurobi license system
 - Download license file
 - Copy license file gurobi.lic to user’s home folder
+  - *Windows:*	C:\Users\(yourusername)
+  - *Linux:*	/home/(yourusername)
 
 ## Sanity check:
 ```python rungobnilp.py data/asia_10000.dat```
